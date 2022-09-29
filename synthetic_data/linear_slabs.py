@@ -1,10 +1,13 @@
-__all__ = ['generate_lms_array', 'visualize_lms_array']
+__all__ = ['generate_lms_array', 'visualize_lms_array', 'save_arrays', 'load_arrays']
 
 import numpy as np
 from typing import Tuple
 from collections.abc import Iterable
+
+import torch
 from scipy.linalg import qr
 import matplotlib.pyplot as plt
+from torch.utils.data import TensorDataset
 
 rng = np.random.default_rng()
 
@@ -70,16 +73,29 @@ def generate_lms_array(num_samples, num_dim, width, slabs: np.ndarray, margins: 
     return x, y, w
 
 
-def visualize_lms_array(*lms_args, **lms_kwargs):
+def visualize_lms_array(x, y, w, save=None, title='LMS'):
     fig, (ax, ax_) = plt.subplots(1, 2, figsize=(16, 5))
-    X, Y, W = generate_lms_array(*lms_args, **lms_kwargs)
-    X = X.dot(W.T)
-    ax.scatter(X[:, 0], X[:, 1], c=Y, cmap='coolwarm', s=4, alpha=0.8)
+    x = x.dot(w.T)
+    ax.scatter(x[:, 0], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
     ax.set_xlabel('first component', fontsize=15)
     ax.set_ylabel('second component', fontsize=15)
 
-    ax_.scatter(X[:, 2], X[:, 1], c=Y, cmap='coolwarm', s=4, alpha=0.8)
+    ax_.scatter(x[:, 2], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
     ax_.set_xlabel('second component', fontsize=15)
     ax_.set_ylabel('third component', fontsize=15)
-    fig.suptitle('LMS', fontsize=15)
+    fig.suptitle(title, fontsize=15)
+    if save:
+        plt.savefig(save, bbox_inches='tight')
     plt.show()
+
+
+def save_arrays(filename: str, x: np.ndarray, y: np.ndarray, w: np.ndarray | None):
+    np.savez(filename, x=x, y=y, w=w)
+
+
+def load_arrays(filename) -> Tuple[TensorDataset, np.ndarray | None]:
+    data = np.load(filename)
+    x = torch.from_numpy(data['x'])
+    y = torch.from_numpy(data['y'])
+    w = torch.from_numpy(data['w'])
+    return TensorDataset(x, y), w
