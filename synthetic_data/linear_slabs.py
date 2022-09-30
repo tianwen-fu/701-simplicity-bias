@@ -51,18 +51,20 @@ def generate_lms_array(num_samples, num_dim, width, slabs: np.ndarray, margins: 
 
     x = rng.uniform(0.0, 1.0, size=(num_samples, num_dim))
     y = rng.choice([0, 1], size=(num_samples, 1))  # labels
-    n_positive_slabs = slabs // 2
-    n_negative_slabs = slabs - n_positive_slabs
+    n_negative_slabs = slabs // 2
+    n_positive_slabs = slabs - n_negative_slabs
     n_slabs = n_positive_slabs * y + n_negative_slabs * (1 - y)  # (N, D)
     slab_no = rng.integers(0, n_slabs)
-    slab_no = slab_no * 2 + y  # 0th negative slab: 0th slab; 0th positive slab: 1st slab
-    slab_lower_bound = - width + slab_no * (slab_widths + margins)
+    slab_no = slab_no * 2 + (1 - y)  # 0th positive slab: 0th slab; 0th negative slab: 1st slab
+    slab_lower_bound = - width + slab_no * (slab_widths + margins * 2)
     x = x * slab_widths + slab_lower_bound
     y = y.reshape((num_samples,))
 
     corrupt_mask = rng.uniform(0, 1, size=x.shape) < noise_proportions
     noisy_data = rng.uniform(-margins, margins, size=x.shape)
     x[corrupt_mask] = noisy_data[corrupt_mask]
+    # just to make it the same as the paper code
+    x[:, slabs.reshape((-1,)) == 2] = -x[:, slabs.reshape((-1,)) == 2]
 
     # transform
     w = np.eye(num_dim)

@@ -35,7 +35,7 @@ class Trainer:
         self.train_data = torch.utils.data.DataLoader(**train_data)
         self.val_data = torch.utils.data.DataLoader(**val_data)
 
-        self.model = model.to(device)
+        self.model = model.to(device) # copy a model to avoid millons of nasty bugs
         self.loss = loss.to(device)
         self.loss_eps = loss_eps
         self.evaluate_interval = evaluate_interval
@@ -47,6 +47,7 @@ class Trainer:
         self.device = device
         self.optimizer = build_optimizer(self.model.parameters(), **optimizer)
         self.max_steps = max_steps
+        self.patience = 1 # patience to wait for loss convergence
 
         logger.info('model: {}'.format(model))
 
@@ -64,9 +65,15 @@ class Trainer:
         loss = self.loss(logits, y_batch)
         loss.backward()
         self.optimizer.step()
-        return loss
+        
+        # compute stats
+        pred = torch.argmax(logits.detach(), 1)
+        accuracy = ((pred == y_batch).sum().float() / len(y_batch)).cpu().item()
+        return loss, dict(
+            loss=loss.detach().cpu().item(),
+            acc=accuracy)
 
-    def step_evaluate(self) -> Dict[str, float]:
+    def short_evaluate(self) -> Dict[str, float]:
         """
         quick evaluation in training
         :param ref_tensor: a tensor for determining dtype and device
@@ -81,18 +88,26 @@ class Trainer:
                     x, y = self.preprocess(x, y)
                     logits = self.model(x)
                     loss = self.loss(logits, y)
-                    total_loss += loss.cpu().numpy()
+                    total_loss += loss.cpu().numpy() * len(y) # default: reduction='mean'
                     pred = torch.argmax(logits, 1)
                     assert pred.shape == y.shape
                     correct += (pred == y).sum().cpu().item()
                     count += len(y)
-                results['{}/SumLoss'.format(name)] = total_loss.item()
+                # import pdb
+                # pdb.set_trace()
+                results['{}/AverageLoss'.format(name)] = total_loss.item() / count
                 results['{}/Accuracy'.format(name)] = float(correct) / count
         return results
 
     def stop_criteria(self, step_number, eval_results):
-        loss = eval_results['Train/SumLoss']
-        return step_number > self.max_steps or loss < self.loss_eps or not np.isfinite(loss)
+        loss = eval_results['Train/AverageLoss']
+        if loss < self.loss_eps:
+            if self.patience == 0:
+                return True
+            self.patience -= 1
+        else:
+            self.patience = 1
+        return step_number > self.max_steps or not np.isfinite(loss)
 
     def final_evaluate(self):
         # TODO: compute AUCs, etc.
@@ -107,12 +122,14 @@ class Trainer:
         ))
 
     def run(self):
+        print(f'Started, logging to {self.work_dir}...')
         step = 0
         stop = False
         while not stop:
             for x_batch, y_batch in self.train_data:
-                loss = self.train_step(x_batch, y_batch)
-                self.writer.add_scalar('Train/Loss', loss.cpu().item(),
+                loss, stats = self.train_step(x_batch, y_batch)
+                for k, v in stats.items():
+                    self.writer.add_scalar('Train_Step/{}'.format(k), v,
                                        global_step=step)
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
@@ -120,7 +137,7 @@ class Trainer:
                 if step % self.evaluate_interval == 0:
                     self.logger.info('Step {}: Loss {}'.format(step, loss.cpu().item()))
                     self.logger.info('Evaluating ...')
-                    eval_results = self.step_evaluate()
+                    eval_results = self.short_evaluate()
                     self.log_eval_results(step, eval_results)
                     if self.stop_criteria(step, eval_results):
                         stop = True
