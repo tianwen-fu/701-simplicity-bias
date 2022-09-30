@@ -1,9 +1,8 @@
 __all__ = ['generate_lms_array', 'visualize_lms_array', 'save_arrays', 'load_arrays']
 
 import numpy as np
-from typing import Tuple
+from typing import Tuple, List
 from collections.abc import Iterable
-
 import torch
 from scipy.linalg import qr
 import matplotlib.pyplot as plt
@@ -23,16 +22,18 @@ def get_orthonormal_matrix(n):
 
 
 def generate_lms_array(num_samples, num_dim, width, slabs: np.ndarray, margins: float | np.ndarray,
-                       noise_proportions: float | np.ndarray,
+                       noise_proportions: float | np.ndarray, slab_probabilities: List[List[float]],
                        random_orthonormal_transform: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate ndarrays for LMS-n or MS-(n, m) data
+    Currently only supporting noise on linear slabs
     :param num_samples: number of samples in the array
     :param num_dim: (D) number of dimensions of the generated data
     :param width: the range of data [-W, W]
-    :param slabs: (D,) array, number of slabs for each dimension
+    :param slabs: (D,) array, number of slabs for each dimension (always P-N-P-N-...)
     :param margins: (D,) array or single number, margin between two consecutive slabs
     :param noise_proportions: (D,) proportion of data to be corrupted, only work for linear
+    :param slab_probabilities: probabilities for sampling each slab, pad the non-existent arrays with 0
     :param random_orthonormal_transform: whether multiply a random orthonormal matrix
     :return: X (N, D), y (N,), w (D, D)
     """
@@ -48,14 +49,23 @@ def generate_lms_array(num_samples, num_dim, width, slabs: np.ndarray, margins: 
     noise_proportions = noise_proportions.reshape((1, num_dim))
     slab_widths = (2 * width - 2 * (slabs - 1) * margins) / slabs
     assert (slab_widths > 0).all()
+    assert all(sum(probs[::2]) == 1.0 and sum(probs[1::2]) == 1.0 for probs in slab_probabilities)
 
     x = rng.uniform(0.0, 1.0, size=(num_samples, num_dim))
     y = rng.choice([0, 1], size=(num_samples, 1))  # labels
     n_negative_slabs = slabs // 2
     n_positive_slabs = slabs - n_negative_slabs
-    n_slabs = n_positive_slabs * y + n_negative_slabs * (1 - y)  # (N, D)
-    slab_no = rng.integers(0, n_slabs)
-    slab_no = slab_no * 2 + (1 - y)  # 0th positive slab: 0th slab; 0th negative slab: 1st slab
+    positive_slab_no = np.stack([
+        rng.choice(np.arange(n), p=p[::2], size=(num_samples, ))
+        for n, p in zip(n_positive_slabs.flatten(), slab_probabilities)
+    ], axis=1)
+    negative_slab_no = np.stack([
+        rng.choice(np.arange(n), p=p[1::2], size=(num_samples, ))
+        for n, p in zip(n_negative_slabs.flatten(), slab_probabilities)
+    ], axis=1)
+    assert positive_slab_no.shape == (num_samples, num_dim)
+    # 0th positive slab: 0th slab; 0th negative slab: 1st slab
+    slab_no = positive_slab_no * 2 * y + (negative_slab_no * 2 + 1) * (1 - y)
     slab_lower_bound = - width + slab_no * (slab_widths + margins * 2)
     x = x * slab_widths + slab_lower_bound
     y = y.reshape((num_samples,))
