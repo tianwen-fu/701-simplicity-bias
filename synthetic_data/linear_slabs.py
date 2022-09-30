@@ -53,6 +53,9 @@ def generate_lms_array(num_samples, num_dim, width, slabs: np.ndarray, margins: 
 
     x = rng.uniform(0.0, 1.0, size=(num_samples, num_dim))
     y = rng.choice([0, 1], size=(num_samples, 1))  # labels
+    # y = np.zeros((num_samples, 1))
+    # y[:num_samples // 2] += 1
+    # rng.shuffle(y)
     n_negative_slabs = slabs // 2
     n_positive_slabs = slabs - n_negative_slabs
     positive_slab_no = np.stack([
