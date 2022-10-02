@@ -84,7 +84,8 @@ class Trainer:
         results = {}
         with torch.no_grad():
             self.model.eval()
-            dataloaders = {'Train': self.train_data, 'Val': self.val_data} | self.additional_data
+            dataloaders = {'Train': self.train_data, 'Val': self.val_data}
+            dataloaders.update(self.additional_data)
             for name, data in dataloaders.items():
                 total_loss = np.array([0.0])
                 logits = []

@@ -1,12 +1,13 @@
 __all__ = ['LinearSlabDataset']
 
 import numpy as np
-from typing import Optional, List
+from typing import Optional, List, Union
 from collections.abc import Iterable
 import torch
 from scipy.linalg import qr
 import matplotlib.pyplot as plt
 from torch.utils.data import TensorDataset
+import os
 
 rng = np.random.default_rng()
 
@@ -34,9 +35,9 @@ def randomize_coordinates(x, w, axes):
 
 
 class LinearSlabDataset(torch.utils.data.TensorDataset):
-    w: np.ndarray | None
+    w: Union[np.ndarray, None]
 
-    def __init__(self, x: np.ndarray, y: np.ndarray, w: np.ndarray | None, randomized_axes=()):
+    def __init__(self, x: np.ndarray, y: np.ndarray, w: Union[np.ndarray, None], randomized_axes=()):
         if len(randomized_axes) > 0:
             x = randomize_coordinates(x, w, randomized_axes)
         super().__init__(torch.from_numpy(x), torch.from_numpy(y))
@@ -68,8 +69,8 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         return LinearSlabDataset(x, y, w, **kwargs)
 
     @staticmethod
-    def generate(num_samples, num_dim, width, slabs: np.ndarray, margins: float | np.ndarray,
-                 noise_proportions: float | np.ndarray, slab_probabilities: List[List[float]],
+    def generate(num_samples, num_dim, width, slabs: np.ndarray, margins: Union[float, np.ndarray],
+                 noise_proportions: Union[float, np.ndarray], slab_probabilities: List[List[float]],
                  random_orthonormal_transform: bool) -> "LinearSlabDataset":
         """
         Generate ndarrays for LMS-n or MS-(n, m) data
@@ -134,20 +135,23 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
 
         return LinearSlabDataset(x, y, w)
 
-    def visualize(self, save_as: Optional[str] = None, title='LMS'):
+    def visualize(self, save_as: Optional[str] = None, title='LMS', 
+                  axis_names=('first component', 'second component', 'third component')):
         x, y = [t.cpu().numpy() for t in self.tensors]
         w = self.w
 
         fig, (ax, ax_) = plt.subplots(1, 2, figsize=(16, 5))
         x = x.dot(w.T)
         ax.scatter(x[:, 0], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
-        ax.set_xlabel('first component', fontsize=15)
-        ax.set_ylabel('second component', fontsize=15)
+        ax.set_xlabel(axis_names[0], fontsize=15)
+        ax.set_ylabel(axis_names[1], fontsize=15)
 
         ax_.scatter(x[:, 2], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
-        ax_.set_xlabel('second component', fontsize=15)
-        ax_.set_ylabel('third component', fontsize=15)
+        ax_.set_xlabel(axis_names[2], fontsize=15)
+        ax_.set_ylabel(axis_names[1], fontsize=15)
         fig.suptitle(title, fontsize=15)
         if save_as:
+            if not os.path.isdir(os.path.dirname(save_as)):
+                os.makedirs(save_as, exist_ok=True)
             plt.savefig(save_as, bbox_inches='tight')
         plt.show()
