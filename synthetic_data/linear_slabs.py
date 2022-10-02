@@ -21,10 +21,24 @@ def get_orthonormal_matrix(n):
     return Q
 
 
-class LinearSlabDataset(torch.utils.data.TensorDataset):
-    w: np.ndarray
+def randomize_coordinates(x, w, axes):
+    if w is None:
+        w = np.eye(x.shape[1])
+    x = np.dot(x, w.T)
+    for ax in axes:
+        p = rng.permutation(x.shape[0])
+        x[:, ax] = x[p, ax]
+    x = np.dot(x, w)
 
-    def __init__(self, x: np.ndarray, y: np.ndarray, w: np.ndarray):
+    return x
+
+
+class LinearSlabDataset(torch.utils.data.TensorDataset):
+    w: np.ndarray | None
+
+    def __init__(self, x: np.ndarray, y: np.ndarray, w: np.ndarray | None, randomized_axes=()):
+        if len(randomized_axes) > 0:
+            x = randomize_coordinates(x, w, randomized_axes)
         super().__init__(torch.from_numpy(x), torch.from_numpy(y))
         self.w = w
 
@@ -48,10 +62,10 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
             np.savez(data_path, x=x, y=y, w=self.w)
 
     @staticmethod
-    def from_file(data_path: str):
+    def from_file(data_path: str, **kwargs):
         data = np.load(data_path)
         x, y, w = data['x'], data['y'], data['w']
-        return LinearSlabDataset(x, y, w)
+        return LinearSlabDataset(x, y, w, **kwargs)
 
     @staticmethod
     def generate(num_samples, num_dim, width, slabs: np.ndarray, margins: float | np.ndarray,

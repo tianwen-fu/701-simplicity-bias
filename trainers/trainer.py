@@ -10,12 +10,14 @@ from torch.utils.tensorboard import SummaryWriter
 from logging import Logger
 from trainers.utils import build_optimizer, build_dataloader
 from models import build_model, build_loss
+from typing import Dict
+from sklearn.metrics import roc_auc_score
 
 
 class Trainer:
     def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device,
                  evaluate_interval, save_interval, work_dir, loss_eps: float, logger: Logger,
-                 max_steps, optimizer: dict):
+                 max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
         """
         train a model until loss convergence
         :param train_data: dict of params to be passed to the construction of the train dataloader
@@ -27,6 +29,7 @@ class Trainer:
         :param save_interval: updates between two checkpoints, 0 for no saving
         :param work_dir: the directory for storing checkpoints and tensorboard logs
         :param optimizer: ('cls' => 'SGD', **kwargs)
+        :param additional_data: additional data to evaluate on
         """
         train_data = train_data.copy()
         val_data = val_data.copy()
@@ -46,6 +49,8 @@ class Trainer:
         self.optimizer = build_optimizer(self.model.parameters(), **optimizer)
         self.max_steps = max_steps
         self.patience = 1  # patience to wait for loss convergence
+        if additional_data is None: additional_data = {}
+        self.additional_data = {k: build_dataloader(**dl) for k, dl in additional_data.items()}
 
         logger.info('model: {}'.format(self.model))
 
@@ -79,22 +84,27 @@ class Trainer:
         results = {}
         with torch.no_grad():
             self.model.eval()
-            for name, data in [('Train', self.train_data), ('Val', self.val_data)]:
+            dataloaders = {'Train': self.train_data, 'Val': self.val_data} | self.additional_data
+            for name, data in dataloaders.items():
                 total_loss = np.array([0.0])
-                correct = count = 0
+                logits = []
+                ys = []
                 for x, y in data:
                     x, y = self.preprocess(x, y)
-                    logits = self.model(x)
-                    loss = self.loss(logits, y)
+                    logit = self.model(x)
+                    loss = self.loss(logit, y)
                     total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
-                    pred = torch.argmax(logits, 1)
-                    assert pred.shape == y.shape
-                    correct += (pred == y).sum().cpu().item()
-                    count += len(y)
-                # import pdb
-                # pdb.set_trace()
-                results['{}/AverageLoss'.format(name)] = total_loss.item() / count
-                results['{}/Accuracy'.format(name)] = float(correct) / count
+                    logits.append(logit.detach())
+                    ys.append(y.detach())
+                logits = torch.cat(logits, dim=0)
+                y = torch.cat(ys, dim=0)
+                pred = torch.argmax(logits, 1)
+                assert pred.shape == y.shape
+                scores = logits[:, 1] - logits[:, 0]
+
+                results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
+                results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
+                results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
         return results
 
     def stop_criteria(self, step_number, eval_results):
@@ -106,10 +116,6 @@ class Trainer:
         else:
             self.patience = 1
         return step_number > self.max_steps or not np.isfinite(loss)
-
-    def final_evaluate(self):
-        # TODO: compute AUCs, etc.
-        pass
 
     def log_eval_results(self, step, eval_results: dict):
         for name, item in eval_results.items():
