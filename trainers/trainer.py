@@ -7,13 +7,13 @@ import numpy as np
 import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
-import torch.utils.data
 from logging import Logger
-from trainers.utils import build_optimizer
+from trainers.utils import build_optimizer, build_dataloader
+from models import build_model, build_loss
 
 
 class Trainer:
-    def __init__(self, train_data: dict, val_data: dict, model: nn.Module, loss: nn.Module, device,
+    def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device,
                  evaluate_interval, save_interval, work_dir, loss_eps: float, logger: Logger,
                  max_steps, optimizer: dict):
         """
@@ -30,13 +30,11 @@ class Trainer:
         """
         train_data = train_data.copy()
         val_data = val_data.copy()
-        train_data['dataset'] = train_data['dataset']
-        val_data['dataset'] = val_data['dataset']
-        self.train_data = torch.utils.data.DataLoader(**train_data)
-        self.val_data = torch.utils.data.DataLoader(**val_data)
+        self.train_data = build_dataloader(**train_data)
+        self.val_data = build_dataloader(**val_data)
 
-        self.model = model.to(device) # copy a model to avoid millons of nasty bugs
-        self.loss = loss.to(device)
+        self.model = build_model(**model).to(device=device)
+        self.loss = build_loss(**loss).to(device)
         self.loss_eps = loss_eps
         self.evaluate_interval = evaluate_interval
         self.save_interval = save_interval
@@ -47,9 +45,9 @@ class Trainer:
         self.device = device
         self.optimizer = build_optimizer(self.model.parameters(), **optimizer)
         self.max_steps = max_steps
-        self.patience = 1 # patience to wait for loss convergence
+        self.patience = 1  # patience to wait for loss convergence
 
-        logger.info('model: {}'.format(model))
+        logger.info('model: {}'.format(self.model))
 
     def preprocess(self, x_batch, y_batch):
         x_batch = x_batch.float().to(device=self.device)
@@ -65,7 +63,7 @@ class Trainer:
         loss = self.loss(logits, y_batch)
         loss.backward()
         self.optimizer.step()
-        
+
         # compute stats
         pred = torch.argmax(logits.detach(), 1)
         accuracy = ((pred == y_batch).sum().float() / len(y_batch)).cpu().item()
@@ -88,7 +86,7 @@ class Trainer:
                     x, y = self.preprocess(x, y)
                     logits = self.model(x)
                     loss = self.loss(logits, y)
-                    total_loss += loss.cpu().numpy() * len(y) # default: reduction='mean'
+                    total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
                     pred = torch.argmax(logits, 1)
                     assert pred.shape == y.shape
                     correct += (pred == y).sum().cpu().item()
@@ -130,7 +128,7 @@ class Trainer:
                 loss, stats = self.train_step(x_batch, y_batch)
                 for k, v in stats.items():
                     self.writer.add_scalar('Train_Step/{}'.format(k), v,
-                                       global_step=step)
+                                           global_step=step)
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
                                os.path.join(self.work_dir, 'step_{}.pth'.format(step)))
