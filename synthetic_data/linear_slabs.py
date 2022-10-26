@@ -85,10 +85,8 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         :param random_orthonormal_transform: whether multiply a random orthonormal matrix
         :return: X (N, D), y (N,), w (D, D)
         """
-        if not isinstance(margins, Iterable):
-            margins = np.full((num_dim,), margins, dtype=np.float32)
-        if not isinstance(noise_proportions, Iterable):
-            noise_proportions = np.full_like(margins, noise_proportions, shape=(num_dim,))
+        margins = np.broadcast_to(margins, (num_dim,)).astype(np.float32)
+        noise_proportions = np.broadcast_to(noise_proportions, (num_dim,)).astype(np.float32)
         assert slabs.shape == (num_dim,)
         assert (slabs > 1).all()
         assert ((slabs == 2) | (noise_proportions == 0)).all()
@@ -101,9 +99,6 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
 
         x = rng.uniform(0.0, 1.0, size=(num_samples, num_dim))
         y = rng.choice([0, 1], size=(num_samples, 1))  # labels
-        # y = np.zeros((num_samples, 1))
-        # y[:num_samples // 2] += 1
-        # rng.shuffle(y)
         n_negative_slabs = slabs // 2
         n_positive_slabs = slabs - n_negative_slabs
         positive_slab_no = np.stack([
@@ -135,7 +130,7 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
 
         return LinearSlabDataset(x, y, w)
 
-    def visualize(self, save_as: Optional[str] = None, title='LMS', 
+    def visualize(self, save_as: Optional[str] = None, title='LMS',
                   axis_names=('first component', 'second component', 'third component')):
         x, y = [t.cpu().numpy() for t in self.tensors]
         w = self.w
@@ -152,6 +147,6 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         fig.suptitle(title, fontsize=15)
         if save_as:
             if not os.path.isdir(os.path.dirname(save_as)):
-                os.makedirs(save_as, exist_ok=True)
+                os.makedirs(os.path.dirname(save_as), exist_ok=True)
             plt.savefig(save_as, bbox_inches='tight')
         plt.show()
