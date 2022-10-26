@@ -94,7 +94,7 @@ def variance_configs(side_probabilities):
         trainer_conf = deepcopy(base_trainer_config)
         trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/variance_{:.5f}/'.format(codebase, timestamp, side_prob)
+            work_dir='{}/output/training_logs_{}/variance/variance_{:.5f}/'.format(codebase, timestamp, side_prob)
         )
         trainer_conf['train_data']['dataset'] = train_data
         trainer_conf['val_data']['dataset'] = val_data
@@ -115,7 +115,7 @@ def training_sample_configs(num_samples):
         trainer_conf = deepcopy(base_trainer_config)
         trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/nsamples_{}/'.format(codebase, timestamp, n)
+            work_dir='{}/output/training_logs_{}/nsamples/nsamples_{}/'.format(codebase, timestamp, n)
         )
         trainer_conf['train_data']['dataset'] = train_data
         trainer_conf['val_data']['dataset'] = val_data
@@ -134,7 +134,7 @@ def network_arch_configs(num_layers, latent_dims):
             trainer_conf = deepcopy(base_trainer_config)
             trainer_conf.update(
                 logger=logger,
-                work_dir='{}/output/training_logs_{}/nlayers_{}_latentdim_{}/'.format(codebase, timestamp, n_layers, latent_dim)
+                work_dir='{}/output/training_logs_{}/nlayers/nlayers_{}_latentdim_{}/'.format(codebase, timestamp, n_layers, latent_dim)
             )
             trainer_conf['model']['num_layers'] = n_layers
             trainer_conf['model']['latent_dim'] = latent_dim
@@ -161,7 +161,7 @@ def input_dim_configs(input_dims):
         trainer_conf = deepcopy(base_trainer_config)
         trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/inputdim_{}/'.format(codebase, timestamp, input_dim)
+            work_dir='{}/output/training_logs_{}/inputdim/inputdim_{}/'.format(codebase, timestamp, input_dim)
         )
         trainer_conf['model']['input_dim'] = input_dim
         trainer_conf['train_data']['dataset'] = train_data
@@ -184,7 +184,7 @@ def num_slabs_configs():
     trainer_conf = deepcopy(base_trainer_config)
     trainer_conf.update(
         logger=logger,
-        work_dir='{}/output/training_logs_{}/nslabs_{}/'.format(codebase, timestamp, 5)
+        work_dir='{}/output/training_logs_{}/nslabs/nslabs_{}/'.format(codebase, timestamp, 5)
     )
     trainer_conf['train_data']['dataset'] = train_data
     trainer_conf['val_data']['dataset'] = val_data
