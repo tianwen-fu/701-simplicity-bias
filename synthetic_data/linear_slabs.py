@@ -1,7 +1,7 @@
 __all__ = ['LinearSlabDataset']
 
 import numpy as np
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Tuple
 from collections.abc import Iterable
 import torch
 from scipy.linalg import qr
@@ -37,11 +37,17 @@ def randomize_coordinates(x, w, axes):
 class LinearSlabDataset(torch.utils.data.TensorDataset):
     w: Union[np.ndarray, None]
 
-    def __init__(self, x: np.ndarray, y: np.ndarray, w: Union[np.ndarray, None], randomized_axes=()):
+    def __init__(self, x: Union[torch.Tensor, np.ndarray], y: Union[torch.Tensor, np.ndarray],
+                 w: Union[np.ndarray, None], randomized_axes=()):
         if len(randomized_axes) > 0:
             x = randomize_coordinates(x, w, randomized_axes)
-        super().__init__(torch.from_numpy(x), torch.from_numpy(y))
+        if isinstance(x, np.ndarray): x = torch.from_numpy(x)
+        if isinstance(y, np.ndarray): y = torch.from_numpy(y)
+        super().__init__(x, y)
         self.w = w
+
+    def randomize_axes(self, axes: Tuple[int]) -> "LinearSlabDataset":
+        return LinearSlabDataset(self.tensors[0].numpy(), self.tensors[1].numpy(), self.w, axes)
 
     def save_as(self, data_path: str, train_split: int = 0):
         """
@@ -135,18 +141,34 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         x, y = [t.cpu().numpy() for t in self.tensors]
         w = self.w
 
-        fig, (ax, ax_) = plt.subplots(1, 2, figsize=(16, 5))
         x = x.dot(w.T)
-        ax.scatter(x[:, 0], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
-        ax.set_xlabel(axis_names[0], fontsize=15)
-        ax.set_ylabel(axis_names[1], fontsize=15)
+        if self.tensors[0].shape[1] > 2:
+            fig, (ax, ax_) = plt.subplots(1, 2, figsize=(16, 5))
+            ax.scatter(x[:, 0], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
+            ax.set_xlabel(axis_names[0], fontsize=15)
+            ax.set_ylabel(axis_names[1], fontsize=15)
 
-        ax_.scatter(x[:, 2], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
-        ax_.set_xlabel(axis_names[2], fontsize=15)
-        ax_.set_ylabel(axis_names[1], fontsize=15)
+            ax_.scatter(x[:, 2], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
+            ax_.set_xlabel(axis_names[2], fontsize=15)
+            ax_.set_ylabel(axis_names[1], fontsize=15)
+        else:
+            fig = plt.figure(figsize=(8, 5))
+            plt.scatter(x[:, 0], x[:, 1], c=y, cmap='coolwarm', s=4, alpha=0.8)
+            plt.xlabel(axis_names[0], fontsize=15)
+            plt.ylabel(axis_names[1], fontsize=15)
         fig.suptitle(title, fontsize=15)
         if save_as:
             if not os.path.isdir(os.path.dirname(save_as)):
                 os.makedirs(os.path.dirname(save_as), exist_ok=True)
             plt.savefig(save_as, bbox_inches='tight')
         plt.show()
+
+    def split_train_val(self, train_size):
+        indices = torch.randperm(self.tensors[0].shape[0])
+        train_indices = indices[:train_size]
+        val_indices = indices[train_size:]
+        train_split = LinearSlabDataset(self.tensors[0][train_indices].contiguous(),
+                                        self.tensors[1][train_indices].contiguous(), self.w)
+        val_split = LinearSlabDataset(self.tensors[0][val_indices].contiguous(),
+                                      self.tensors[1][val_indices].contiguous(), self.w)
+        return train_split, val_split
