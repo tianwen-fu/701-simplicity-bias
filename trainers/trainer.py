@@ -127,7 +127,7 @@ class Trainer:
         ))
 
     def run(self):
-        print(f'Started, logging to {self.work_dir}...')
+        self.logger.info(f'Started, logging to {self.work_dir}...')
         step = 0
         stop = False
         while not stop:
