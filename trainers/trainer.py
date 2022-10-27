@@ -1,4 +1,4 @@
-__all__ = ['Trainer']
+__all__ = ['Trainer', 'FixedScheduleTrainer']
 
 import os
 from typing import Dict
