@@ -151,3 +151,14 @@ class Trainer:
 
                 step += 1
         self.logger.info('Train finished with {} steps'.format(step + 1))
+
+
+class FixedScheduleTrainer(Trainer):
+    def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device, evaluate_interval,
+                 save_interval, work_dir, loss_eps: float, logger: Logger, max_steps, optimizer: dict,
+                 additional_data: Dict[str, dict] = None):
+        super().__init__(train_data, val_data, model, loss, device, evaluate_interval, save_interval, work_dir,
+                         loss_eps, logger, max_steps, optimizer, additional_data)
+
+    def stop_criteria(self, step_number, eval_results):
+        return step_number > self.max_steps
