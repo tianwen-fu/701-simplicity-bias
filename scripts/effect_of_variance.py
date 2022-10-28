@@ -218,7 +218,7 @@ def n_linear_configs(n_slabs, input_dims):
 
 
 def execute_config(func, *args, **kwargs):
-    for trainer_conf, *ref_conf in func(*args, **kwargs):
+    for trainer_conf, *ref_conf in func(*args, **kwargs).values():
         logger.info(f'Trainer configuration: \n {trainer_conf}')
         trainer = Trainer(**trainer_conf)
         trainer.run()
