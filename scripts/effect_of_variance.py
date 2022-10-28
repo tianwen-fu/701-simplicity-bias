@@ -55,7 +55,8 @@ base_trainer_config = dict(
     optimizer=dict(
         cls='SGD',
         lr=0.1,
-        weight_decay=5.0e-5
+        weight_decay=5.0e-5,
+        momentum=0.9
     ),
     train_data=dict(
         # dataset=equiv_train,

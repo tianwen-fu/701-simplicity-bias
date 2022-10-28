@@ -3,7 +3,7 @@ import torch.optim
 import torch.utils.data
 from synthetic_data.linear_slabs import LinearSlabDataset
 
-__all__ = ['build_optimizer', 'build_dataset']
+__all__ = ['build_optimizer', 'build_dataset', 'build_dataloader']
 
 
 def build_optimizer(params, cls, **kwargs):
