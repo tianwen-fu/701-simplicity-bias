@@ -161,6 +161,7 @@ def input_dim_configs(n_slabs, input_dims):
                                                                                   input_dim)
         )
         s_randomized = train_data.randomize_axes((0,))
+        ref_trainer_conf['model']['input_dim'] = input_dim
         ref_trainer_conf['train_data']['dataset'] = s_randomized
         ref_trainer_conf['val_data']['dataset'] = val_data
         ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
