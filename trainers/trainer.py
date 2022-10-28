@@ -16,7 +16,7 @@ from sklearn.metrics import roc_auc_score
 
 class Trainer:
     def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device,
-                 evaluate_interval, save_interval, work_dir, loss_eps: float, logger: Logger,
+                 evaluate_interval, save_interval, work_dir, accuracy_threshold: float, logger: Logger,
                  max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
         """
         train a model until loss convergence
@@ -38,7 +38,7 @@ class Trainer:
 
         self.model = build_model(**model).to(device=device)
         self.loss = build_loss(**loss).to(device)
-        self.loss_eps = loss_eps
+        self.accuracy_threshold = accuracy_threshold
         self.evaluate_interval = evaluate_interval
         self.save_interval = save_interval
         self.work_dir = work_dir
@@ -110,12 +110,13 @@ class Trainer:
 
     def stop_criteria(self, step_number, eval_results):
         loss = eval_results['Train/AverageLoss']
-        if loss < self.loss_eps:
+        acc = eval_results['Train/Accuracy']
+        if acc > self.accuracy_threshold:
             if self.patience == 0:
                 return True
             self.patience -= 1
         else:
-            self.patience = 1
+            self.patience = 10
         return step_number > self.max_steps or not np.isfinite(loss)
 
     def log_eval_results(self, step, eval_results: dict):
