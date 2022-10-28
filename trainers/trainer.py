@@ -116,7 +116,7 @@ class Trainer:
                 return True
             self.patience -= 1
         else:
-            self.patience = 10
+            self.patience = 10000
         return step_number > self.max_steps or not np.isfinite(loss)
 
     def log_eval_results(self, step, eval_results: dict):

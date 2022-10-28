@@ -39,7 +39,7 @@ base_trainer_config = dict(
         num_layers=2,
         input_dim=50,
         output_dim=2,
-        latent_dim=100,
+        latent_dim=300,
         use_bn=False,
         dropout_probability=0.0,
         linear_init=None
@@ -49,7 +49,7 @@ base_trainer_config = dict(
     evaluate_interval=1000,
     save_interval=0,
     # work_dir='./training_logs/lms7_noisy_{}/'.format(datetime.datetime.now().strftime('%m%d%H%M')),
-    loss_eps=1e-2,
+    accuracy_threshold=0.995,
     # logger=logger,
     max_steps=250000,
     optimizer=dict(
@@ -82,87 +82,69 @@ base_trainer_config = dict(
 )
 
 
-def variance_configs(side_probabilities):
+def side_prob_configs(n_slabs, side_probabilities):
     configs = {}
+    assert n_slabs in (5, 7)
     for side_prob in side_probabilities:
         data_conf = deepcopy(base_data_config)
-        center_prob = (1.0 - 2 * side_prob) / 2.0
-        slab_probs = [side_prob, 0.25, center_prob, 0.5, center_prob, 0.25, side_prob]
-        data_conf['slab_probabilities'] = [[1.0, 1.0]] + [slab_probs] * 49
+        slabs = np.array([2] + [n_slabs] * 49)
+        if n_slabs == 7:
+            center_prob = (1.0 - 2 * side_prob) / 2.0
+            slab_probs = [side_prob, 0.25, center_prob, 0.5, center_prob, 0.25, side_prob]
+        else:
+            center_prob = 1.0 - 2 * side_prob
+            slab_probs = [side_prob, 0.5, center_prob, 0.5, side_prob]
+        data_conf.update({'slabs': slabs,
+                          'slab_probabilities': [[1.0, 1.0]] + [slab_probs] * 49})
         dataset = LinearSlabDataset.generate(**data_conf)
         train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
 
         trainer_conf = deepcopy(base_trainer_config)
         trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/variance/variance_{:.5f}/'.format(codebase, timestamp, side_prob)
+            work_dir='{}/output/training_logs_{}/{}slabs_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
+                                                                                  side_prob)
         )
         trainer_conf['train_data']['dataset'] = train_data
         trainer_conf['val_data']['dataset'] = val_data
         trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
         trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-        configs[side_prob] = trainer_conf
-    return configs
 
-
-def training_sample_configs(num_samples):
-    configs = {}
-    for n in num_samples:
-        data_conf = deepcopy(base_data_config)
-        data_conf['num_samples'] = n
-        dataset = LinearSlabDataset.generate(**data_conf)
-        train_data, val_data = dataset.split_train_val(n - 10000)
-
-        trainer_conf = deepcopy(base_trainer_config)
-        trainer_conf.update(
+        ref_trainer_conf = deepcopy(base_trainer_config)
+        ref_trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/nsamples/nsamples_{}/'.format(codebase, timestamp, n)
+            work_dir='{}/output/training_logs_{}/{}slabs_ref_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
+                                                                                      side_prob)
         )
-        trainer_conf['train_data']['dataset'] = train_data
-        trainer_conf['val_data']['dataset'] = val_data
-        trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
-        trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-        configs[n] = trainer_conf
+        s_randomized = train_data.randomize_axes((0,))
+        ref_trainer_conf['train_data']['dataset'] = s_randomized
+        ref_trainer_conf['val_data']['dataset'] = val_data
+        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+        ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+        configs[side_prob] = trainer_conf, ref_trainer_conf
     return configs
 
 
-def network_arch_configs(num_layers, latent_dims):
+def input_dim_configs(n_slabs, input_dims):
     configs = {}
-    dataset = LinearSlabDataset.generate(**base_data_config)
-    train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
-    for n_layers in num_layers:
-        for latent_dim in latent_dims:
-            trainer_conf = deepcopy(base_trainer_config)
-            trainer_conf.update(
-                logger=logger,
-                work_dir='{}/output/training_logs_{}/nlayers/nlayers_{}_latentdim_{}/'.format(codebase, timestamp, n_layers, latent_dim)
-            )
-            trainer_conf['model']['num_layers'] = n_layers
-            trainer_conf['model']['latent_dim'] = latent_dim
-            trainer_conf['train_data']['dataset'] = train_data
-            trainer_conf['val_data']['dataset'] = val_data
-            trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
-            trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-            configs[n_layers, latent_dim] = trainer_conf
-    return configs
-
-
-def input_dim_configs(input_dims):
-    configs = {}
+    assert n_slabs in (5, 7)
     for input_dim in input_dims:
         data_conf = deepcopy(base_data_config)
         data_conf['num_dim'] = input_dim
-        data_conf['slabs'] = np.array([2] + [7] * (input_dim - 1))
+        data_conf['slabs'] = np.array([2] + [n_slabs] * (input_dim - 1))
         data_conf['noise_proportions'] = np.array([0.1] + [0] * (input_dim - 1))
-        data_conf['slab_probabilities'] = [[1.0, 1.0]] + \
-                                          [[1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]] * (input_dim - 1)
+        if n_slabs == 7:
+            slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
+        else:
+            slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
+        data_conf['slab_probabilities'] = [[1.0, 1.0]] + [slab_probs] * (input_dim - 1)
         dataset = LinearSlabDataset.generate(**data_conf)
         train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
 
         trainer_conf = deepcopy(base_trainer_config)
         trainer_conf.update(
             logger=logger,
-            work_dir='{}/output/training_logs_{}/inputdim/inputdim_{}/'.format(codebase, timestamp, input_dim)
+            work_dir='{}/output/training_logs_{}/{}slabs_inputdim_{}/'.format(codebase, timestamp, n_slabs, input_dim)
         )
         trainer_conf['model']['input_dim'] = input_dim
         trainer_conf['train_data']['dataset'] = train_data
@@ -170,42 +152,89 @@ def input_dim_configs(input_dims):
         trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
         trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
             tuple(range(1, input_dim)))
-        configs[input_dim] = trainer_conf
+
+        # reference, trained only on sc-randomized
+        ref_trainer_conf = deepcopy(base_trainer_config)
+        ref_trainer_conf.update(
+            logger=logger,
+            work_dir='{}/output/training_logs_{}/{}slabs_ref_inputdim_{}/'.format(codebase, timestamp, n_slabs,
+                                                                                  input_dim)
+        )
+        s_randomized = train_data.randomize_axes((0,))
+        ref_trainer_conf['train_data']['dataset'] = s_randomized
+        ref_trainer_conf['val_data']['dataset'] = val_data
+        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+        ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+            tuple(range(1, input_dim)))
+        configs[input_dim] = trainer_conf, ref_trainer_conf
     return configs
 
 
-def num_slabs_configs():
+def n_linear_configs(n_slabs, input_dims):
     configs = {}
-    data_conf = deepcopy(base_data_config)
-    data_conf.update({'slabs': np.array([2] + [5] * 49),
-                      'slab_probabilities': [[1.0, 1.0]] + [[0.125, 0.5, 0.75, 0.5, 0.125]] * 49})
-    dataset = LinearSlabDataset.generate(**data_conf)
-    train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
+    assert n_slabs in (5, 7)
+    for linear_dim, slab_dim in input_dims:
+        data_conf = deepcopy(base_data_config)
+        data_conf['num_dim'] = linear_dim + slab_dim
+        data_conf['slabs'] = np.array([2] * linear_dim + [n_slabs] * slab_dim)
+        data_conf['noise_proportions'] = np.array([0.1] * linear_dim + [0] * slab_dim)
+        if n_slabs == 7:
+            slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
+        else:
+            slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
+        data_conf['slab_probabilities'] = [[1.0, 1.0]] * linear_dim + [slab_probs] * slab_dim
+        dataset = LinearSlabDataset.generate(**data_conf)
+        train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
 
-    trainer_conf = deepcopy(base_trainer_config)
-    trainer_conf.update(
-        logger=logger,
-        work_dir='{}/output/training_logs_{}/nslabs/nslabs_{}/'.format(codebase, timestamp, 5)
-    )
-    trainer_conf['train_data']['dataset'] = train_data
-    trainer_conf['val_data']['dataset'] = val_data
-    trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
-    trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-    configs[5] = trainer_conf
+        trainer_conf = deepcopy(base_trainer_config)
+        trainer_conf.update(
+            logger=logger,
+            work_dir='{}/output/training_logs_{}/{}slabs_lineardim_{}_slabdim_{}/'.format(codebase, timestamp, n_slabs,
+                                                                                          linear_dim, slab_dim)
+        )
+        trainer_conf['model']['input_dim'] = linear_dim + slab_dim
+        trainer_conf['train_data']['dataset'] = train_data
+        trainer_conf['val_data']['dataset'] = val_data
+        trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes(tuple(range(linear_dim)))
+        trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+            tuple(range(linear_dim, linear_dim + slab_dim)))
+
+        ref_trainer_conf = deepcopy(base_trainer_config)
+        ref_trainer_conf.update(
+            logger=logger,
+            work_dir='{}/output/training_logs_{}/{}slabs_ref_lineardim_{}_slabdim_{}/'.format(codebase, timestamp,
+                                                                                              n_slabs,
+                                                                                              linear_dim, slab_dim)
+        )
+        ref_trainer_conf['model']['input_dim'] = linear_dim + slab_dim
+        ref_trainer_conf['train_data']['dataset'] = train_data.randomize_axes(tuple(range(linear_dim)))
+        ref_trainer_conf['val_data']['dataset'] = val_data
+        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes(
+            tuple(range(linear_dim)))
+        ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+            tuple(range(linear_dim, linear_dim + slab_dim)))
+        configs[linear_dim, slab_dim] = trainer_conf, ref_trainer_conf
     return configs
+
+
+def execute_config(func, *args, **kwargs):
+    for trainer_conf, *ref_conf in func(*args, **kwargs):
+        logger.info(f'Trainer configuration: \n {trainer_conf}')
+        trainer = Trainer(**trainer_conf)
+        trainer.run()
+        if ref_conf is not None:
+            ref_conf, = ref_conf
+            logger.info(f'Reference configuration: \n {ref_conf}')
+            trainer = Trainer(**ref_conf)
+            trainer.run()
 
 
 def main():
-    for train_configs_generator in [
-        variance_configs(np.linspace(1 / 16.0, 1 / 4.0, 10, endpoint=True)),
-        training_sample_configs(np.arange(40000, 200000, 20000)),
-        network_arch_configs([2, 3, 4, 5], [100, 200, 300]),
-        input_dim_configs([2, 5, 10, 20, 30, 40, 50]),
-        num_slabs_configs()
-    ]:
-        for trainer_conf in train_configs_generator.values():
-            trainer = Trainer(**trainer_conf)
-            trainer.run()
+    execute_config(input_dim_configs, 7, [1, 2, 3, 5, 7] + list(range(9, 50, 5)))
+    execute_config(side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=True))
+    execute_config(input_dim_configs, 5, [39, 49, 79, 99, 149])
+    execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=True))
+    execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(10, 50, 10)])
 
 
 if __name__ == '__main__':
