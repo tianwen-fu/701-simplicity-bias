@@ -143,6 +143,7 @@ class Trainer:
             steps = step - self.last_step
             current_time = time.perf_counter()
             dic['System/StepsPerSec'] = steps / (current_time - self.last_time)
+            self.last_step = step
             self.last_time = current_time
         return dic
 
