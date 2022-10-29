@@ -150,6 +150,11 @@ class Trainer:
 
     def run(self):
         self.logger.info(f'Started, logging to {self.work_dir}...')
+
+        # flush tiny numbers to zero to prevent severe CPU performance degradation
+        # see https://discuss.pytorch.org/t/training-time-gets-slower-and-slower-on-cpu/145483/5
+        torch.set_flush_denormal(True)
+
         step = 0
         stop = False
         self.last_time = time.perf_counter()
