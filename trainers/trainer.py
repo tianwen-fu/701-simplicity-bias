@@ -93,26 +93,27 @@ class Trainer:
             self.model.eval()
             dataloaders = {'Train': self.train_data, 'Val': self.val_data}
             dataloaders.update(self.additional_data)
-            for name, data in dataloaders.items():
-                total_loss = np.array([0.0])
-                logits = []
-                ys = []
-                for x, y in data:
-                    x, y = self.preprocess(x, y)
-                    logit = self.model(x)
-                    loss = self.loss(logit, y)
-                    total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
-                    logits.append(logit.detach())
-                    ys.append(y.detach())
-                logits = torch.cat(logits, dim=0)
-                y = torch.cat(ys, dim=0)
-                pred = torch.argmax(logits, 1)
-                assert pred.shape == y.shape
-                scores = logits[:, 1] - logits[:, 0]
+            with torch.no_grad():
+                for name, data in dataloaders.items():
+                    total_loss = np.array([0.0])
+                    logits = []
+                    ys = []
+                    for x, y in data:
+                        x, y = self.preprocess(x, y)
+                        logit = self.model(x)
+                        loss = self.loss(logit, y)
+                        total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
+                        logits.append(logit.detach())
+                        ys.append(y.detach())
+                    logits = torch.cat(logits, dim=0)
+                    y = torch.cat(ys, dim=0)
+                    pred = torch.argmax(logits, 1)
+                    assert pred.shape == y.shape
+                    scores = logits[:, 1] - logits[:, 0]
 
-                results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
-                results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
-                results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
+                    results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
+                    results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
+                    results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
         return results
 
     def stop_criteria(self, step_number, eval_results):

@@ -92,42 +92,45 @@ def side_prob_configs(n_slabs, side_probabilities):
     configs = {}
     assert n_slabs in (5, 7)
     for side_prob in side_probabilities:
-        data_conf = deepcopy(base_data_config)
-        slabs = np.array([2] + [n_slabs] * 49)
-        if n_slabs == 7:
-            center_prob = (1.0 - 2 * side_prob) / 2.0
-            slab_probs = [side_prob, 0.25, center_prob, 0.5, center_prob, 0.25, side_prob]
-        else:
-            center_prob = 1.0 - 2 * side_prob
-            slab_probs = [side_prob, 0.5, center_prob, 0.5, side_prob]
-        data_conf.update({'slabs': slabs,
-                          'slab_probabilities': [[1.0, 1.0]] + [slab_probs] * 49})
-        dataset = LinearSlabDataset.generate(**data_conf)
-        train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
+        try:
+            data_conf = deepcopy(base_data_config)
+            slabs = np.array([2] + [n_slabs] * 49)
+            if n_slabs == 7:
+                center_prob = (1.0 - 2 * side_prob) / 2.0
+                slab_probs = [side_prob, 0.25, center_prob, 0.5, center_prob, 0.25, side_prob]
+            else:
+                center_prob = 1.0 - 2 * side_prob
+                slab_probs = [side_prob, 0.5, center_prob, 0.5, side_prob]
+            data_conf.update({'slabs': slabs,
+                              'slab_probabilities': [[1.0, 1.0]] + [slab_probs] * 49})
+            dataset = LinearSlabDataset.generate(**data_conf)
+            train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
 
-        trainer_conf = deepcopy(base_trainer_config)
-        trainer_conf.update(
-            logger=logger,
-            work_dir='{}/output/training_logs_{}/{}slabs_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
-                                                                                  side_prob)
-        )
-        trainer_conf['train_data']['dataset'] = train_data
-        trainer_conf['val_data']['dataset'] = val_data
-        trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
-        trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-
-        ref_trainer_conf = deepcopy(base_trainer_config)
-        ref_trainer_conf.update(
-            logger=logger,
-            work_dir='{}/output/training_logs_{}/{}slabs_ref_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
+            trainer_conf = deepcopy(base_trainer_config)
+            trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
                                                                                       side_prob)
-        )
-        s_randomized = train_data.randomize_axes((0,))
-        ref_trainer_conf['train_data']['dataset'] = s_randomized
-        ref_trainer_conf['val_data']['dataset'] = val_data
-        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
-        ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
-        configs[side_prob] = trainer_conf, ref_trainer_conf
+            )
+            trainer_conf['train_data']['dataset'] = train_data
+            trainer_conf['val_data']['dataset'] = val_data
+            trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
+            trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+
+            ref_trainer_conf = deepcopy(base_trainer_config)
+            ref_trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_ref_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
+                                                                                          side_prob)
+            )
+            s_randomized = train_data.randomize_axes((0,))
+            ref_trainer_conf['train_data']['dataset'] = s_randomized
+            ref_trainer_conf['val_data']['dataset'] = val_data
+            ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+            configs[side_prob] = trainer_conf, ref_trainer_conf
+        except Exception as e:
+            logger.exception(e, exc_info=sys.exc_info())
     return configs
 
 
