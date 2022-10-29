@@ -130,7 +130,7 @@ def side_prob_configs(n_slabs, side_probabilities):
             ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
             configs[side_prob] = trainer_conf, ref_trainer_conf
         except Exception as e:
-            logger.exception(e, exc_info=sys.exc_info())
+            logger.exception(f'Error for side_prob = {side_prob}', exc_info=sys.exc_info())
     return configs
 
 
@@ -180,7 +180,7 @@ def input_dim_configs(n_slabs, input_dims):
                 tuple(range(1, input_dim)))
             configs[input_dim] = trainer_conf, ref_trainer_conf
         except Exception as e:
-            logger.exception(e, exc_info=sys.exc_info())
+            logger.exception(f'Error for input_dim={input_dim}', exc_info=sys.exc_info())
     return configs
 
 
