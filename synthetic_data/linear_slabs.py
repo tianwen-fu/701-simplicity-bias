@@ -95,7 +95,6 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         noise_proportions = np.broadcast_to(noise_proportions, (num_dim,)).astype(np.float32)
         assert slabs.shape == (num_dim,)
         assert (slabs > 1).all()
-        assert ((slabs == 2) | (noise_proportions == 0)).all()
         slabs = slabs.reshape((1, num_dim))
         margins = margins.reshape((1, num_dim))
         noise_proportions = noise_proportions.reshape((1, num_dim))
@@ -123,7 +122,26 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         y = y.reshape((num_samples,))
 
         corrupt_mask = rng.uniform(0, 1, size=x.shape) < noise_proportions
-        noisy_data = rng.uniform(-margins, margins, size=x.shape)
+
+        assert margins.max(axis=None) == margins.min(axis=None)
+        margin = margins.reshape((-1, ))[0]
+        # slab_width dict
+        sw_dic = {s: (2 * width - 2 * (s - 1) * margin) / s for s in np.unique(slabs)}
+        # offset dict
+        # e.g. for 5 slab, the offsets are: -3m-3w/2, -m-w/2, m+w/2, 3m+3w/2
+        trans_dic = {s: [[(2 * i + 1) * (margin + sw_dic[s] / 2), -(2 * i + 1) * (margin + sw_dic[s] / 2)]
+                         for i in range((s - 1) // 2)] for s in np.unique(slabs)}
+        trans_dic = {s: [item for sublist in trans_dic[s] for item in sublist] for s in trans_dic.keys()}
+        trans_dic.update({2: [0]})
+
+        # randomly choose offset for each dimension
+        noisy_data_trans = np.stack([
+            rng.choice(trans_dic[s], size=(num_samples,))
+            for s in slabs[0]
+        ], axis=1)
+
+        noisy_data = rng.uniform(-margins, margins, size=x.shape) + noisy_data_trans
+
         x[corrupt_mask] = noisy_data[corrupt_mask]
         # just to make it the same as the paper code
         x[:, slabs.reshape((-1,)) == 2] = -x[:, slabs.reshape((-1,)) == 2]
