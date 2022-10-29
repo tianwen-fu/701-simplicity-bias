@@ -18,8 +18,8 @@ from sklearn.metrics import roc_auc_score
 
 class Trainer:
     def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device,
-                 evaluate_interval, save_interval, work_dir, accuracy_threshold: float, logger: Logger,
-                 max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
+                 premature_evaluate_interval, evaluate_interval, save_interval, work_dir, accuracy_threshold: float,
+                 logger: Logger, max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
         """
         train a model until loss convergence
         :param train_data: dict of params to be passed to the construction of the train dataloader
@@ -41,6 +41,7 @@ class Trainer:
         self.model = build_model(**model).to(device=device)
         self.loss = build_loss(**loss).to(device)
         self.accuracy_threshold = accuracy_threshold
+        self.premature_evaluate_interval = premature_evaluate_interval
         self.evaluate_interval = evaluate_interval
         self.save_interval = save_interval
         self.work_dir = work_dir
@@ -135,7 +136,7 @@ class Trainer:
 
     def system_log(self, step):
         dic = {
-            'System/CPULoadAvg5min': psutil.getloadavg()[1],
+            'System/CPULoadAvg5min': psutil.getloadavg()[1] / os.cpu_count(),
             'System/MemoryUsage': psutil.virtual_memory()[2]
         }
         if step > self.last_step:
@@ -160,7 +161,8 @@ class Trainer:
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
                                os.path.join(self.work_dir, 'step_{}.pth'.format(step)))
-                if step % self.evaluate_interval == 0:
+                if (step < self.evaluate_interval and step % self.premature_evaluate_interval == 0) or (
+                        step % self.evaluate_interval == 0):
                     self.logger.info('Step {}: Loss {}'.format(step, loss.cpu().item()))
                     self.logger.info('Evaluating ...')
                     eval_results = self.short_evaluate()
