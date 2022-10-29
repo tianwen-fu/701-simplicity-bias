@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import torch
 from copy import deepcopy
-from logging import Logger, StreamHandler, FileHandler
+from logging import Logger, StreamHandler, FileHandler, Formatter
 from datetime import datetime
 
 codebase = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -15,10 +15,15 @@ from trainers import Trainer
 
 timestamp = datetime.now().strftime('%y%m%d_%H%M%S')
 logger = Logger('variance_exps', logging.DEBUG)
-logger.addHandler(StreamHandler())
+formatter = Formatter('[%(asctime)s] %(message)s')
+stdout_handler = StreamHandler()
+stdout_handler.setFormatter(formatter)
+logger.addHandler(stdout_handler)
 logging_file = os.path.join(codebase, 'output', 'variance_exps_{}.log'.format(timestamp))
 os.makedirs(os.path.dirname(logging_file), exist_ok=True)
-logger.addHandler(FileHandler(logging_file))
+file_handler = FileHandler(logging_file)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 TRAIN_SIZE = 100000
 
@@ -46,7 +51,7 @@ base_trainer_config = dict(
     ),
     loss=dict(cls='CE'),
     device='cuda' if torch.cuda.is_available() else 'cpu',
-    evaluate_interval=1000,
+    evaluate_interval=2000,
     save_interval=0,
     # work_dir='./training_logs/lms7_noisy_{}/'.format(datetime.datetime.now().strftime('%m%d%H%M')),
     accuracy_threshold=0.995,
@@ -146,10 +151,11 @@ def input_dim_configs(n_slabs, input_dims):
             logger=logger,
             work_dir='{}/output/training_logs_{}/{}slabs_inputdim_{}/'.format(codebase, timestamp, n_slabs, input_dim)
         )
+        s_randomized = train_data.randomize_axes((0,))
         trainer_conf['model']['input_dim'] = input_dim
         trainer_conf['train_data']['dataset'] = train_data
         trainer_conf['val_data']['dataset'] = val_data
-        trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
+        trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
         trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
             tuple(range(1, input_dim)))
 
@@ -160,7 +166,6 @@ def input_dim_configs(n_slabs, input_dims):
             work_dir='{}/output/training_logs_{}/{}slabs_ref_inputdim_{}/'.format(codebase, timestamp, n_slabs,
                                                                                   input_dim)
         )
-        s_randomized = train_data.randomize_axes((0,))
         ref_trainer_conf['model']['input_dim'] = input_dim
         ref_trainer_conf['train_data']['dataset'] = s_randomized
         ref_trainer_conf['val_data']['dataset'] = val_data
@@ -196,7 +201,8 @@ def n_linear_configs(n_slabs, input_dims):
         trainer_conf['model']['input_dim'] = linear_dim + slab_dim
         trainer_conf['train_data']['dataset'] = train_data
         trainer_conf['val_data']['dataset'] = val_data
-        trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes(tuple(range(linear_dim)))
+        s_randomized_data = train_data.randomize_axes(tuple(range(linear_dim)))
+        trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized_data
         trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
             tuple(range(linear_dim, linear_dim + slab_dim)))
 
@@ -208,10 +214,9 @@ def n_linear_configs(n_slabs, input_dims):
                                                                                               linear_dim, slab_dim)
         )
         ref_trainer_conf['model']['input_dim'] = linear_dim + slab_dim
-        ref_trainer_conf['train_data']['dataset'] = train_data.randomize_axes(tuple(range(linear_dim)))
+        ref_trainer_conf['train_data']['dataset'] = s_randomized_data
         ref_trainer_conf['val_data']['dataset'] = val_data
-        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes(
-            tuple(range(linear_dim)))
+        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized_data
         ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
             tuple(range(linear_dim, linear_dim + slab_dim)))
         configs[linear_dim, slab_dim] = trainer_conf, ref_trainer_conf
@@ -231,10 +236,10 @@ def execute_config(func, *args, **kwargs):
 
 
 def main():
-    execute_config(input_dim_configs, 7, [1, 2, 3, 5, 7] + list(range(9, 50, 5)))
-    execute_config(side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=True))
-    execute_config(input_dim_configs, 5, [39, 49, 79, 99, 149])
-    execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=True))
+    execute_config(input_dim_configs, 7, [2, 3, 5, 7] + list(range(10, 51, 5)))
+    execute_config(side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False))
+    execute_config(input_dim_configs, 5, [40, 50, 80, 100, 150])
+    execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False))
     execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(10, 50, 10)])
 
 

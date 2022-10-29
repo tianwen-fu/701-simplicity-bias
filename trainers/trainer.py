@@ -2,6 +2,8 @@ __all__ = ['Trainer', 'FixedScheduleTrainer']
 
 import os
 from typing import Dict
+import time
+import psutil
 
 import numpy as np
 import torch
@@ -49,6 +51,10 @@ class Trainer:
         self.optimizer = build_optimizer(self.model.parameters(), **optimizer)
         self.max_steps = max_steps
         self.patience = 1  # patience to wait for loss convergence
+
+        # for computing throughput
+        self.last_step = 0
+        self.last_time = 0
         if additional_data is None: additional_data = {}
         self.additional_data = {k: build_dataloader(**dl) for k, dl in additional_data.items()}
 
@@ -116,7 +122,7 @@ class Trainer:
                 return True
             self.patience -= 1
         else:
-            self.patience = 10000
+            self.patience = 10000 // self.evaluate_interval
         return step_number > self.max_steps or not np.isfinite(loss)
 
     def log_eval_results(self, step, eval_results: dict):
@@ -127,10 +133,24 @@ class Trainer:
             '\n'.join(['{}: {}'.format(k, v) for k, v in eval_results.items()])
         ))
 
+    def system_log(self, step):
+        dic = {
+            'System/CPULoadAvg5min': psutil.getloadavg()[1],
+            'System/MemoryUsage': psutil.virtual_memory()[2]
+        }
+        if step > self.last_step:
+            steps = step - self.last_step
+            current_time = time.perf_counter()
+            dic['System/StepsPerSec'] = steps / (current_time - self.last_time)
+            self.last_time = current_time
+        return dic
+
     def run(self):
         self.logger.info(f'Started, logging to {self.work_dir}...')
         step = 0
         stop = False
+        self.last_time = time.perf_counter()
+        self.last_step = 0
         while not stop:
             for x_batch, y_batch in self.train_data:
                 loss, stats = self.train_step(x_batch, y_batch)
@@ -144,6 +164,7 @@ class Trainer:
                     self.logger.info('Step {}: Loss {}'.format(step, loss.cpu().item()))
                     self.logger.info('Evaluating ...')
                     eval_results = self.short_evaluate()
+                    eval_results.update(self.system_log(step))
                     self.log_eval_results(step, eval_results)
                     if self.stop_criteria(step, eval_results):
                         stop = True
