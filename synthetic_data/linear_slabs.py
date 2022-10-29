@@ -69,7 +69,7 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         return LinearSlabDataset(x, y, w, **kwargs)
 
     @staticmethod
-    def generate(num_samples, num_dim, width, slabs: np.ndarray, margins: Union[float, np.ndarray],
+    def generate(num_samples, num_dim, width, slabs: np.ndarray, margin: Union[float, np.ndarray],
                  noise_proportions: Union[float, np.ndarray], slab_probabilities: List[List[float]],
                  random_orthonormal_transform: bool) -> "LinearSlabDataset":
         """
@@ -85,13 +85,13 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         :param random_orthonormal_transform: whether multiply a random orthonormal matrix
         :return: X (N, D), y (N,), w (D, D)
         """
-        if not isinstance(margins, Iterable):
-            margins = np.full((num_dim,), margins, dtype=np.float32)
+        if not isinstance(margin, Iterable):
+            margins = np.full((num_dim,), margin, dtype=np.float32)
         if not isinstance(noise_proportions, Iterable):
             noise_proportions = np.full_like(margins, noise_proportions, shape=(num_dim,))
         assert slabs.shape == (num_dim,)
         assert (slabs > 1).all()
-        assert ((slabs == 2) | (noise_proportions == 0)).all()
+        # assert ((slabs == 2) | (noise_proportions == 0)).all()
         slabs = slabs.reshape((1, num_dim))
         margins = margins.reshape((1, num_dim))
         noise_proportions = noise_proportions.reshape((1, num_dim))
@@ -122,7 +122,26 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         y = y.reshape((num_samples,))
 
         corrupt_mask = rng.uniform(0, 1, size=x.shape) < noise_proportions
-        noisy_data = rng.uniform(-margins, margins, size=x.shape)
+        
+        
+        # slab_width dict
+        sw_dic = {s: (2 * width - 2 * (s - 1) * margin) / s for s in np.unique(slabs)}
+        # offset dict
+        # e.g. for 5 slab, the offersets are: -3m-3w/2, -m-w/2, m+w/2, 3m+3w/2
+        trans_dic = {s: [[(2*i+1)*(margin+sw_dic[s]/2), -(2*i+1)*(margin+sw_dic[s]/2)] 
+                         for i in range((s-1)//2)] for s in np.unique(slabs)}
+        trans_dic = {s: [item for sublist in trans_dic[s] for item in sublist] for s in trans_dic.keys()}
+        trans_dic.update({2: [0]})
+        
+        # randomly choose offset for each dimension
+        noisy_data_trans = np.stack([
+            rng.choice(trans_dic[s], size=(num_samples,))
+            for s in slabs[0]
+        ], axis=1)
+        
+        noisy_data = rng.uniform(-margins, margins, size=x.shape) + noisy_data_trans
+            
+        
         x[corrupt_mask] = noisy_data[corrupt_mask]
         # just to make it the same as the paper code
         x[:, slabs.reshape((-1,)) == 2] = -x[:, slabs.reshape((-1,)) == 2]
