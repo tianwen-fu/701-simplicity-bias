@@ -245,7 +245,7 @@ def main():
     execute_config(side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False))
     execute_config(input_dim_configs, 5, [40, 50, 80, 100, 150])
     execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False))
-    execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(10, 50, 10)])
+    execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)])
 
 
 if __name__ == '__main__':
