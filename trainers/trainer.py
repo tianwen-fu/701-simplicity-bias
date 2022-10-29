@@ -1,7 +1,9 @@
-__all__ = ['Trainer']
+__all__ = ['Trainer', 'FixedScheduleTrainer']
 
 import os
 from typing import Dict
+import time
+import psutil
 
 import numpy as np
 import torch
@@ -16,8 +18,8 @@ from sklearn.metrics import roc_auc_score
 
 class Trainer:
     def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device,
-                 evaluate_interval, save_interval, work_dir, loss_eps: float, logger: Logger,
-                 max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
+                 premature_evaluate_interval, evaluate_interval, save_interval, work_dir, accuracy_threshold: float,
+                 logger: Logger, max_steps, optimizer: dict, additional_data: Dict[str, dict] = None):
         """
         train a model until loss convergence
         :param train_data: dict of params to be passed to the construction of the train dataloader
@@ -38,7 +40,8 @@ class Trainer:
 
         self.model = build_model(**model).to(device=device)
         self.loss = build_loss(**loss).to(device)
-        self.loss_eps = loss_eps
+        self.accuracy_threshold = accuracy_threshold
+        self.premature_evaluate_interval = premature_evaluate_interval
         self.evaluate_interval = evaluate_interval
         self.save_interval = save_interval
         self.work_dir = work_dir
@@ -49,6 +52,10 @@ class Trainer:
         self.optimizer = build_optimizer(self.model.parameters(), **optimizer)
         self.max_steps = max_steps
         self.patience = 1  # patience to wait for loss convergence
+
+        # for computing throughput
+        self.last_step = 0
+        self.last_time = 0
         if additional_data is None: additional_data = {}
         self.additional_data = {k: build_dataloader(**dl) for k, dl in additional_data.items()}
 
@@ -86,36 +93,38 @@ class Trainer:
             self.model.eval()
             dataloaders = {'Train': self.train_data, 'Val': self.val_data}
             dataloaders.update(self.additional_data)
-            for name, data in dataloaders.items():
-                total_loss = np.array([0.0])
-                logits = []
-                ys = []
-                for x, y in data:
-                    x, y = self.preprocess(x, y)
-                    logit = self.model(x)
-                    loss = self.loss(logit, y)
-                    total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
-                    logits.append(logit.detach())
-                    ys.append(y.detach())
-                logits = torch.cat(logits, dim=0)
-                y = torch.cat(ys, dim=0)
-                pred = torch.argmax(logits, 1)
-                assert pred.shape == y.shape
-                scores = logits[:, 1] - logits[:, 0]
+            with torch.no_grad():
+                for name, data in dataloaders.items():
+                    total_loss = np.array([0.0])
+                    logits = []
+                    ys = []
+                    for x, y in data:
+                        x, y = self.preprocess(x, y)
+                        logit = self.model(x)
+                        loss = self.loss(logit, y)
+                        total_loss += loss.cpu().numpy() * len(y)  # default: reduction='mean'
+                        logits.append(logit.detach())
+                        ys.append(y.detach())
+                    logits = torch.cat(logits, dim=0)
+                    y = torch.cat(ys, dim=0)
+                    pred = torch.argmax(logits, 1)
+                    assert pred.shape == y.shape
+                    scores = logits[:, 1] - logits[:, 0]
 
-                results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
-                results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
-                results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
+                    results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
+                    results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
+                    results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
         return results
 
     def stop_criteria(self, step_number, eval_results):
         loss = eval_results['Train/AverageLoss']
-        if loss < self.loss_eps:
+        acc = eval_results['Train/Accuracy']
+        if acc > self.accuracy_threshold:
             if self.patience == 0:
                 return True
             self.patience -= 1
         else:
-            self.patience = 1
+            self.patience = 10000 // self.evaluate_interval
         return step_number > self.max_steps or not np.isfinite(loss)
 
     def log_eval_results(self, step, eval_results: dict):
@@ -126,10 +135,30 @@ class Trainer:
             '\n'.join(['{}: {}'.format(k, v) for k, v in eval_results.items()])
         ))
 
+    def system_log(self, step):
+        dic = {
+            'System/CPULoadAvg5min': psutil.getloadavg()[1] / os.cpu_count(),
+            'System/MemoryUsage': psutil.virtual_memory()[2]
+        }
+        if step > self.last_step:
+            steps = step - self.last_step
+            current_time = time.perf_counter()
+            dic['System/StepsPerSec'] = steps / (current_time - self.last_time)
+            self.last_step = step
+            self.last_time = current_time
+        return dic
+
     def run(self):
-        print(f'Started, logging to {self.work_dir}...')
+        self.logger.info(f'Started, logging to {self.work_dir}...')
+
+        # flush tiny numbers to zero to prevent severe CPU performance degradation
+        # see https://discuss.pytorch.org/t/training-time-gets-slower-and-slower-on-cpu/145483/5
+        torch.set_flush_denormal(True)
+
         step = 0
         stop = False
+        self.last_time = time.perf_counter()
+        self.last_step = 0
         while not stop:
             for x_batch, y_batch in self.train_data:
                 loss, stats = self.train_step(x_batch, y_batch)
@@ -139,10 +168,12 @@ class Trainer:
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
                                os.path.join(self.work_dir, 'step_{}.pth'.format(step)))
-                if step % self.evaluate_interval == 0:
+                if (step < self.evaluate_interval and step % self.premature_evaluate_interval == 0) or (
+                        step % self.evaluate_interval == 0):
                     self.logger.info('Step {}: Loss {}'.format(step, loss.cpu().item()))
                     self.logger.info('Evaluating ...')
                     eval_results = self.short_evaluate()
+                    eval_results.update(self.system_log(step))
                     self.log_eval_results(step, eval_results)
                     if self.stop_criteria(step, eval_results):
                         stop = True
@@ -151,3 +182,14 @@ class Trainer:
 
                 step += 1
         self.logger.info('Train finished with {} steps'.format(step + 1))
+
+
+class FixedScheduleTrainer(Trainer):
+    def __init__(self, train_data: dict, val_data: dict, model: dict, loss: dict, device, evaluate_interval,
+                 save_interval, work_dir, loss_eps: float, logger: Logger, max_steps, optimizer: dict,
+                 additional_data: Dict[str, dict] = None):
+        super().__init__(train_data, val_data, model, loss, device, evaluate_interval, save_interval, work_dir,
+                         loss_eps, logger, max_steps, optimizer, additional_data)
+
+    def stop_criteria(self, step_number, eval_results):
+        return step_number > self.max_steps
