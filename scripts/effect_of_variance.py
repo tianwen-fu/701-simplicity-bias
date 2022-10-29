@@ -135,45 +135,49 @@ def input_dim_configs(n_slabs, input_dims):
     configs = {}
     assert n_slabs in (5, 7)
     for input_dim in input_dims:
-        data_conf = deepcopy(base_data_config)
-        data_conf['num_dim'] = input_dim
-        data_conf['slabs'] = np.array([2] + [n_slabs] * (input_dim - 1))
-        data_conf['noise_proportions'] = np.array([0.1] + [0] * (input_dim - 1))
-        if n_slabs == 7:
-            slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
-        else:
-            slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
-        data_conf['slab_probabilities'] = [[1.0, 1.0]] + [slab_probs] * (input_dim - 1)
-        dataset = LinearSlabDataset.generate(**data_conf)
-        train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
+        try:
+            data_conf = deepcopy(base_data_config)
+            data_conf['num_dim'] = input_dim
+            data_conf['slabs'] = np.array([2] + [n_slabs] * (input_dim - 1))
+            data_conf['noise_proportions'] = np.array([0.1] + [0] * (input_dim - 1))
+            if n_slabs == 7:
+                slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
+            else:
+                slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
+            data_conf['slab_probabilities'] = [[1.0, 1.0]] + [slab_probs] * (input_dim - 1)
+            dataset = LinearSlabDataset.generate(**data_conf)
+            train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
 
-        trainer_conf = deepcopy(base_trainer_config)
-        trainer_conf.update(
-            logger=logger,
-            work_dir='{}/output/training_logs_{}/{}slabs_inputdim_{}/'.format(codebase, timestamp, n_slabs, input_dim)
-        )
-        s_randomized = train_data.randomize_axes((0,))
-        trainer_conf['model']['input_dim'] = input_dim
-        trainer_conf['train_data']['dataset'] = train_data
-        trainer_conf['val_data']['dataset'] = val_data
-        trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
-        trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
-            tuple(range(1, input_dim)))
+            trainer_conf = deepcopy(base_trainer_config)
+            trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_inputdim_{}/'.format(codebase, timestamp,
+                                                                                  n_slabs, input_dim)
+            )
+            s_randomized = train_data.randomize_axes((0,))
+            trainer_conf['model']['input_dim'] = input_dim
+            trainer_conf['train_data']['dataset'] = train_data
+            trainer_conf['val_data']['dataset'] = val_data
+            trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+                tuple(range(1, input_dim)))
 
-        # reference, trained only on sc-randomized
-        ref_trainer_conf = deepcopy(base_trainer_config)
-        ref_trainer_conf.update(
-            logger=logger,
-            work_dir='{}/output/training_logs_{}/{}slabs_ref_inputdim_{}/'.format(codebase, timestamp, n_slabs,
-                                                                                  input_dim)
-        )
-        ref_trainer_conf['model']['input_dim'] = input_dim
-        ref_trainer_conf['train_data']['dataset'] = s_randomized
-        ref_trainer_conf['val_data']['dataset'] = val_data
-        ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
-        ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
-            tuple(range(1, input_dim)))
-        configs[input_dim] = trainer_conf, ref_trainer_conf
+            # reference, trained only on sc-randomized
+            ref_trainer_conf = deepcopy(base_trainer_config)
+            ref_trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_ref_inputdim_{}/'.format(codebase, timestamp,
+                                                                                      n_slabs, input_dim)
+            )
+            ref_trainer_conf['model']['input_dim'] = input_dim
+            ref_trainer_conf['train_data']['dataset'] = s_randomized
+            ref_trainer_conf['val_data']['dataset'] = val_data
+            ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+                tuple(range(1, input_dim)))
+            configs[input_dim] = trainer_conf, ref_trainer_conf
+        except Exception as e:
+            logger.exception(e, exc_info=sys.exc_info())
     return configs
 
 
