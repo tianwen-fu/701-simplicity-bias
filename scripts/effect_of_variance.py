@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 import sys
@@ -127,7 +128,8 @@ def side_prob_configs(n_slabs, side_probabilities):
             ref_trainer_conf['train_data']['dataset'] = s_randomized
             ref_trainer_conf['val_data']['dataset'] = val_data
             ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
-            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+                tuple(range(1, 50)))
             configs[side_prob] = trainer_conf, ref_trainer_conf
         except Exception as e:
             logger.exception(f'Error for side_prob = {side_prob}', exc_info=sys.exc_info())
@@ -231,6 +233,55 @@ def n_linear_configs(n_slabs, input_dims):
     return configs
 
 
+# I actually would prefer calling the param "momentums"
+# but the spell check has some Latin origin though ...
+def hyperparam_tuning(n_slabs, latent_dims, num_layers, lrs, momenta):
+    assert n_slabs == 7
+    assert len(latent_dims) == len(num_layers) == len(lrs) == len(momenta)
+    dataset = LinearSlabDataset.generate(**base_data_config)
+    train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
+    s_randomized = train_data.randomize_axes((0,))
+    sc_randomized = train_data.randomize_axes(tuple(range(1, 50)))
+    configs = {}
+
+    for latent_dim, nlayers, lr, momentum in zip(latent_dims, num_layers, lrs, momenta):
+        try:
+            trainer_conf = deepcopy(base_trainer_config)
+            trainer_conf['model'].update(
+                num_layers=nlayers,
+                latent_dim=latent_dim
+            )
+            trainer_conf['optimizer'].update(
+                lr=lr,
+                momentum=momentum
+            )
+            ref_trainer_conf = copy.deepcopy(trainer_conf)
+            trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_{}_{}_lr{}_m{}/'.format(
+                    codebase, timestamp, n_slabs, latent_dim, nlayers, lr, momentum)
+            )
+            ref_trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_ref_{}_{}_lr{}_m{}/'.format(
+                    codebase, timestamp, n_slabs, latent_dim, nlayers, lr, momentum)
+            )
+            trainer_conf['train_data']['dataset'] = train_data
+            trainer_conf['val_data']['dataset'] = val_data
+            trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            trainer_conf['additional_data']['sc_randomized']['dataset'] = sc_randomized
+            ref_trainer_conf['train_data']['dataset'] = train_data
+            ref_trainer_conf['val_data']['dataset'] = val_data
+            ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = sc_randomized
+
+            configs[latent_dim, nlayers, lr, momentum] = trainer_conf, ref_trainer_conf
+        except Exception as e:
+            logger.exception(f'Error for params {latent_dim, nlayers, lr, momentum}', exc_info=sys.exc_info())
+
+    return configs
+
+
 def execute_config(func, *args, **kwargs):
     for trainer_conf, *ref_conf in func(*args, **kwargs).values():
         logger.info(f'Trainer configuration: \n {trainer_conf}')
@@ -249,6 +300,12 @@ def main():
     execute_config(input_dim_configs, 5, [40, 50, 80, 100, 150])
     execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False))
     execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)])
+    execute_config(hyperparam_tuning, 7,
+                   [100, 200, 200, 200, 300, 300, 300, 300],
+                   [  2,   2,   2,   2,   2,   2,   2,   2],
+                   [0.3, 0.1, 0.1, 0.3, 0.1, 0.3, 0.1, 0.3],
+                   [0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9],
+                   )
 
 
 if __name__ == '__main__':
