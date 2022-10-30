@@ -271,7 +271,7 @@ def hyperparam_tuning(n_slabs, latent_dims, num_layers, lrs, momenta):
             trainer_conf['val_data']['dataset'] = val_data
             trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
             trainer_conf['additional_data']['sc_randomized']['dataset'] = sc_randomized
-            ref_trainer_conf['train_data']['dataset'] = train_data
+            ref_trainer_conf['train_data']['dataset'] = s_randomized
             ref_trainer_conf['val_data']['dataset'] = val_data
             ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
             ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = sc_randomized
