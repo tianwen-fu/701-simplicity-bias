@@ -283,6 +283,52 @@ def hyperparam_tuning(n_slabs, latent_dims, num_layers, lrs, momenta):
     return configs
 
 
+def noise_proportion_configs(n_slabs, noise_props):
+    configs = {}
+    assert n_slabs in (5, 7)
+    for noise_prop in noise_props:
+        try:
+            data_conf = deepcopy(base_data_config)
+            slabs = np.array([2] + [n_slabs] * 49)
+            if n_slabs == 7:
+                slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
+            else:
+                slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
+            data_conf.update({'slabs': slabs,
+                              'noise_proportions': np.array([noise_prop] + [0] * 49),
+                              'slab_probabilities': [[1.0, 1.0]] + [slab_probs] * 49})
+            dataset = LinearSlabDataset.generate(**data_conf)
+            train_data, val_data = dataset.split_train_val(TRAIN_SIZE)
+            s_randomized = train_data.randomize_axes((0,))
+
+            trainer_conf = deepcopy(base_trainer_config)
+            trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_noiseprop_{:.3f}/'.format(codebase, timestamp, n_slabs,
+                                                                                      noise_prop)
+            )
+            trainer_conf['train_data']['dataset'] = train_data
+            trainer_conf['val_data']['dataset'] = val_data
+            trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+
+            ref_trainer_conf = deepcopy(base_trainer_config)
+            ref_trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_ref_noiseprop_{:.3f}/'.format(codebase, timestamp, n_slabs,
+                                                                                          noise_prop)
+            )
+            ref_trainer_conf['train_data']['dataset'] = s_randomized
+            ref_trainer_conf['val_data']['dataset'] = val_data
+            ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+                tuple(range(1, 50)))
+            configs[noise_prop] = trainer_conf, ref_trainer_conf
+        except Exception as e:
+            logger.exception(f'Error for noise_prop = {noise_prop}', exc_info=sys.exc_info())
+    return configs
+
+
 def execute_config(func, *args, **kwargs):
     for trainer_conf, *ref_conf in func(*args, **kwargs).values():
         logger.info(f'Trainer configuration: \n {trainer_conf}')
@@ -301,11 +347,12 @@ def main():
     args = parser.parse_args()
 
     params = [
-        (input_dim_configs, 7, [2, 3, 5, 7] + list(range(10, 51, 5))),
-        (side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False)),
-        (input_dim_configs, 5, [40, 50, 80, 100, 120, 150]),
-        (side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
-        (n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)]),
+        # (input_dim_configs, 7, [2, 3, 5, 7] + list(range(10, 51, 5))),
+        # (side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False)),
+        # (input_dim_configs, 5, [40, 50, 80, 100, 120, 150]),
+        # (side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
+        # (n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)]),
+        (noise_proportion_configs, 7, np.linspace(0.1, 0.5, num=8, endpoint=True)),
     ]
 
     if args.reverse:
