@@ -27,10 +27,10 @@ file_handler = FileHandler(logging_file)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-TRAIN_SIZE = 100000
+TRAIN_SIZE = 40000
 
 base_data_config = dict(
-    num_samples=110000,
+    num_samples=50000,
     num_dim=50,
     margins=0.1,
     width=1.0,
