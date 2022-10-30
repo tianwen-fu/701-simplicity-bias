@@ -121,28 +121,17 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         x = x * slab_widths + slab_lower_bound
         y = y.reshape((num_samples,))
 
-        corrupt_mask = rng.uniform(0, 1, size=x.shape) < noise_proportions
+        # compute noises
+        if len(noise_proportions.nonzero()[0]) > 0:
+            corrupt_mask = rng.uniform(0, 1, size=x.shape) < noise_proportions
+            offsets = np.broadcast_to(np.arange(slabs.max() - 1).reshape((-1, 1)), (slabs.max() - 1, num_dim))
+            offsets = - width + slab_widths + offsets * (slab_widths + 2 * margins)
+            noisy_data = rng.uniform(0, 1, size=x.shape)
+            gap_number = rng.integers(0, slabs - 1, size=x.shape)
+            noise_offsets = np.take_along_axis(offsets, gap_number, axis=0)
+            noisy_data = 2 * margins * noisy_data + noise_offsets
+            x[corrupt_mask] = noisy_data[corrupt_mask]
 
-        assert margins.max(axis=None) == margins.min(axis=None)
-        margin = margins.reshape((-1, ))[0]
-        # slab_width dict
-        sw_dic = {s: (2 * width - 2 * (s - 1) * margin) / s for s in np.unique(slabs)}
-        # offset dict
-        # e.g. for 5 slab, the offsets are: -3m-3w/2, -m-w/2, m+w/2, 3m+3w/2
-        trans_dic = {s: [[(2 * i + 1) * (margin + sw_dic[s] / 2), -(2 * i + 1) * (margin + sw_dic[s] / 2)]
-                         for i in range((s - 1) // 2)] for s in np.unique(slabs)}
-        trans_dic = {s: [item for sublist in trans_dic[s] for item in sublist] for s in trans_dic.keys()}
-        trans_dic.update({2: [0]})
-
-        # randomly choose offset for each dimension
-        noisy_data_trans = np.stack([
-            rng.choice(trans_dic[s], size=(num_samples,))
-            for s in slabs[0]
-        ], axis=1)
-
-        noisy_data = rng.uniform(-margins, margins, size=x.shape) + noisy_data_trans
-
-        x[corrupt_mask] = noisy_data[corrupt_mask]
         # just to make it the same as the paper code
         x[:, slabs.reshape((-1,)) == 2] = -x[:, slabs.reshape((-1,)) == 2]
 
@@ -190,3 +179,23 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         val_split = LinearSlabDataset(self.tensors[0][val_indices].contiguous(),
                                       self.tensors[1][val_indices].contiguous(), self.w)
         return train_split, val_split
+
+
+def _unit_test():
+    data_config = dict(
+        num_samples=110000,
+        num_dim=50,
+        margins=0.1,
+        width=1.0,
+        random_orthonormal_transform=True
+    )
+    ms_57_data_config = {**data_config, **{'slabs': np.array([5] + [7] * 49), 'noise_proportions': [0.1] + [0] * 49,
+                                           'slab_probabilities': [[0.125, 0.5, 0.75, 0.5, 0.125]] +
+                                                                 [[1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25,
+                                                                   1 / 16.0]] * 49}}
+
+    ms_57_data = LinearSlabDataset.generate(**ms_57_data_config)
+
+
+if __name__ == '__main__':
+    _unit_test()
