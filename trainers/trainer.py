@@ -181,6 +181,7 @@ class Trainer:
                     break
 
                 step += 1
+        torch.save(dict(model=self.model.state_dict()), os.path.join(self.work_dir, 'final.pth'))
         self.logger.info('Train finished with {} steps'.format(step + 1))
 
 

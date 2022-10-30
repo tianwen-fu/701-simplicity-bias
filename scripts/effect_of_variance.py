@@ -7,6 +7,7 @@ import torch
 from copy import deepcopy
 from logging import Logger, StreamHandler, FileHandler, Formatter
 from datetime import datetime
+import argparse
 
 codebase = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.append(codebase)
@@ -61,9 +62,9 @@ base_trainer_config = dict(
     max_steps=250000,
     optimizer=dict(
         cls='SGD',
-        lr=0.1,
+        lr=0.3,
         weight_decay=5.0e-4,
-        momentum=0.9
+        momentum=0.0
     ),
     train_data=dict(
         # dataset=equiv_train,
@@ -295,17 +296,29 @@ def execute_config(func, *args, **kwargs):
 
 
 def main():
-    execute_config(input_dim_configs, 7, [2, 3, 5, 7] + list(range(10, 51, 5)))
-    execute_config(side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False))
-    execute_config(input_dim_configs, 5, [40, 50, 80, 100, 150])
-    execute_config(side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False))
-    execute_config(n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)])
-    execute_config(hyperparam_tuning, 7,
-                   [100, 200, 200, 200, 300, 300, 300, 300],
-                   [  2,   2,   2,   2,   2,   2,   2,   2],
-                   [0.3, 0.1, 0.1, 0.3, 0.1, 0.3, 0.1, 0.3],
-                   [0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9],
-                   )
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--reverse', action='store_true')
+    args = parser.parse_args()
+
+    params = [
+        (input_dim_configs, 7, [2, 3, 5, 7] + list(range(10, 51, 5))),
+        (side_prob_configs, 7, np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False)),
+        (input_dim_configs, 5, [40, 50, 80, 100, 120, 150]),
+        (side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
+        (n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)]),
+    ]
+
+    if args.reverse:
+        params = params[::-1]
+    for param in params:
+        execute_config(*param)
+
+    # execute_config(hyperparam_tuning, 7,
+    #                [100, 200, 200, 200, 300, 300, 300, 300],
+    #                [  2,   2,   2,   2,   2,   2,   2,   2],
+    #                [0.3, 0.1, 0.1, 0.3, 0.1, 0.3, 0.1, 0.3],
+    #                [0.0, 0.9, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9],
+    #                )
 
 
 if __name__ == '__main__':
