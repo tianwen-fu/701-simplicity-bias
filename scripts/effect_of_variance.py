@@ -114,9 +114,10 @@ def side_prob_configs(n_slabs, side_probabilities):
                 work_dir='{}/output/training_logs_{}/{}slabs_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
                                                                                       side_prob)
             )
+            s_randomized = train_data.randomize_axes((0,))
             trainer_conf['train_data']['dataset'] = train_data
             trainer_conf['val_data']['dataset'] = val_data
-            trainer_conf['additional_data']['s_randomized']['dataset'] = train_data.randomize_axes((0,))
+            trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
             trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
 
             ref_trainer_conf = deepcopy(base_trainer_config)
@@ -125,7 +126,6 @@ def side_prob_configs(n_slabs, side_probabilities):
                 work_dir='{}/output/training_logs_{}/{}slabs_ref_sideprob_{:.5f}/'.format(codebase, timestamp, n_slabs,
                                                                                           side_prob)
             )
-            s_randomized = train_data.randomize_axes((0,))
             ref_trainer_conf['train_data']['dataset'] = s_randomized
             ref_trainer_conf['val_data']['dataset'] = val_data
             ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
@@ -328,6 +328,51 @@ def noise_proportion_configs(n_slabs, noise_props):
             logger.exception(f'Error for noise_prop = {noise_prop}', exc_info=sys.exc_info())
     return configs
 
+def nsamples_configs(n_slabs, nsamples):
+    configs = {}
+    assert n_slabs in (5, 7)
+    for sample_size in nsamples:
+        try:
+            data_conf = deepcopy(base_data_config)
+            slabs = np.array([2] + [n_slabs] * 49)
+            if n_slabs == 7:
+                slab_probs = [1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0]
+            else:
+                slab_probs = [0.125, 0.5, 0.75, 0.5, 0.125]
+            data_conf.update({'slabs': slabs,
+                              'slab_probabilities': [[1.0, 1.0]] + [slab_probs] * 49,
+                              'num_samples': sample_size + 10000,})
+            dataset = LinearSlabDataset.generate(**data_conf)
+            train_data, val_data = dataset.split_train_val(sample_size)
+
+            trainer_conf = deepcopy(base_trainer_config)
+            trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_nsamples_{}/'.format(codebase, timestamp, n_slabs,
+                                                                                                       sample_size)
+            )
+            s_randomized = train_data.randomize_axes((0,))
+            trainer_conf['train_data']['dataset'] = train_data
+            trainer_conf['val_data']['dataset'] = val_data
+            trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(tuple(range(1, 50)))
+
+            ref_trainer_conf = deepcopy(base_trainer_config)
+            ref_trainer_conf.update(
+                logger=logger,
+                work_dir='{}/output/training_logs_{}/{}slabs_ref_nsamples_{}/'.format(codebase, timestamp, n_slabs,
+                                                                                                           sample_size)
+            )
+            ref_trainer_conf['train_data']['dataset'] = s_randomized
+            ref_trainer_conf['val_data']['dataset'] = val_data
+            ref_trainer_conf['additional_data']['s_randomized']['dataset'] = s_randomized
+            ref_trainer_conf['additional_data']['sc_randomized']['dataset'] = train_data.randomize_axes(
+                tuple(range(1, 50)))
+            configs[sample_size] = trainer_conf, ref_trainer_conf
+        except Exception as e:
+            logger.exception(f'Error for sample_size = {sample_size}', exc_info=sys.exc_info())
+    return configs
+
 
 def execute_config(func, *args, **kwargs):
     for trainer_conf, *ref_conf in func(*args, **kwargs).values():
@@ -352,7 +397,8 @@ def main():
         # (input_dim_configs, 5, [40, 50, 80, 100, 120, 150]),
         # (side_prob_configs, 5, np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
         # (n_linear_configs, 5, [(l, 50 - l) for l in range(5, 50, 5)]),
-        (noise_proportion_configs, 7, np.linspace(0.1, 0.5, num=8, endpoint=True)),
+        # (noise_proportion_configs, 7, np.linspace(0.1, 0.6, num=11, endpoint=True)),
+        (nsamples_configs, 7, list(range(20000, 250000, 20000))),
     ]
 
     if args.reverse:

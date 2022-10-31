@@ -45,6 +45,11 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         if isinstance(y, np.ndarray): y = torch.from_numpy(y)
         super().__init__(x, y)
         self.w = w
+        
+    def __str__(self):
+        return '<{} with {} samples and {} feature dimensions>'.format(
+            self.__class__.__name__, self.x.shape[0], self.x.shape[1]
+        )
 
     def randomize_axes(self, axes: Tuple[int]) -> "LinearSlabDataset":
         return LinearSlabDataset(self.tensors[0].numpy(), self.tensors[1].numpy(), self.w, axes)
