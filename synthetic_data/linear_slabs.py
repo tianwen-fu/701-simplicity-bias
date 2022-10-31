@@ -48,8 +48,11 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
         
     def __str__(self):
         return '<{} with {} samples and {} feature dimensions>'.format(
-            self.__class__.__name__, self.x.shape[0], self.x.shape[1]
+            self.__class__.__name__, self.tensors[0].shape[0], self.tensors[0].shape[1]
         )
+    
+    def __repr__(self):
+        return self.__str__()
 
     def randomize_axes(self, axes: Tuple[int]) -> "LinearSlabDataset":
         return LinearSlabDataset(self.tensors[0].numpy(), self.tensors[1].numpy(), self.w, axes)
