@@ -105,7 +105,6 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
         import wandb
         wandb_run = wandb.init(project=wandb_project, reinit=True, config=config, name=name, entity=wandb_entity)
         wandb_run.save(os.path.join(work_dir, '*'))
-        wandb_run.log()
 
     config = _expand_config(config)
     with open(os.path.join(work_dir, 'full_config.py'), 'w') as file:
@@ -131,7 +130,7 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
 
     trainer = Trainer(dataloaders=dataloaders, model=model, device=device, work_dir=work_dir, logger=logger,
                       optimizer=optimizer, **config['trainer'])
-    trainer.run()
+    trainer.run(wandb_logger=wandb_run)
 
     if wandb_project is not None:
         wandb_run.finish()

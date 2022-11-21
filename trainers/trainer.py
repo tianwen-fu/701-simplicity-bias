@@ -118,11 +118,14 @@ class Trainer:
         while not stop:
             for x_batch, y_batch in self.train_data:
                 loss, stats = self.train_step(x_batch, y_batch)
+                # note wandb_logger must use consecutive steps, so we will keep a dictionary of scalars
+                # instead of passing the step each time
+                scalars = {}
                 for k, v in stats.items():
                     self.writer.add_scalar('Train_Step/{}'.format(k), v,
                                            global_step=step)
-                    if wandb_logger is not None:
-                        wandb_logger.log({'Train_Step/{}'.format(k): v}, step=step, commit=False)
+                if wandb_logger is not None:
+                    scalars.update({'Train_Step/{}'.format(k): v for k, v in stats.items()})
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
                                os.path.join(self.work_dir, 'step_{}.pth'.format(step)))
@@ -133,12 +136,14 @@ class Trainer:
                     eval_results = self.short_evaluate()
                     self.log_eval_results(step, eval_results)
                     if wandb_logger is not None:
-                        wandb_logger.log(eval_results, step=step)
+                        scalars.update(eval_results)
                     if self.stop_criteria(step, eval_results):
                         stop = True
                 if stop:
                     break
 
+                if wandb_logger is not None:
+                    wandb_logger.log(scalars)
                 step += 1
         torch.save(dict(model=self.model.state_dict()), os.path.join(self.work_dir, 'final.pth'))
         self.logger.info('Train finished with {} steps'.format(step + 1))

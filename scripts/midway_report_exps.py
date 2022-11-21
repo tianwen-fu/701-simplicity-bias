@@ -3,6 +3,7 @@ import sys
 from argparse import ArgumentParser
 from datetime import datetime
 from copy import deepcopy
+import traceback
 
 import runner
 import numpy as np
@@ -108,6 +109,7 @@ def main():
                                wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
                 except:
                     print(f'Error running experiment {setup_name}')
+                    traceback.print_exc()
 
 
 if __name__ == '__main__':
