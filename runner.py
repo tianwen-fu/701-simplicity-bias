@@ -18,19 +18,26 @@ from trainers import Trainer
 __all__ = ['set_random_seed', 'run']
 
 
-def _expand_multiplier(value):
+def _expand_multiplier(value, total_count):
     out = ()
     for item in value:
-        out += (item['val'],) * item['count']
+        if item['count'] == -1:
+            count = total_count
+            assert item is value[-1]
+        else:
+            count = item['count']
+        out += (item['val'],) * count
+        total_count -= count
     return out
 
 
 def _expand_config(config):
     config = deepcopy(config)
-    config['data']['slabs'] = np.asarray(_expand_multiplier(config['data']['slabs']), dtype=np.uint8)
-    config['data']['noise_proportions'] = np.asarray(_expand_multiplier(config['data']['noise_proportions']),
+    num_dim = config['data']['num_dim']
+    config['data']['slabs'] = np.asarray(_expand_multiplier(config['data']['slabs'], num_dim), dtype=np.uint8)
+    config['data']['noise_proportions'] = np.asarray(_expand_multiplier(config['data']['noise_proportions'], num_dim),
                                                      dtype=np.float32)
-    config['data']['slab_probabilities'] = _expand_multiplier(config['data']['slab_probabilities'])
+    config['data']['slab_probabilities'] = _expand_multiplier(config['data']['slab_probabilities'], num_dim)
     return config
 
 
@@ -108,7 +115,7 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
     for name, loader in dataloaders.items():
         dataset: LinearSlabDataset = loader.dataset
         dataset.visualize(title=name, save_as=os.path.join(work_dir, f'data_{name}.png'), show=False)
-        dataset.save_as(os.path.join(f'data_{name}.npz'))
+        dataset.save_as(os.path.join(work_dir, f'data_{name}.npz'))
 
     # build model and optimizer
     model = Model(config['model']).to(device=device)

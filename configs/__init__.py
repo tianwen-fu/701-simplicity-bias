@@ -11,9 +11,9 @@ lms_7_fcn300_2 = dict(
         margins=0.1,
         width=1.0,
         random_orthonormal_transform=True,
-        slabs=(dict(count=1, val=2), dict(count=49, val=7)),
-        noise_proportions=(dict(count=1, val=0.1), dict(count=49, val=0)),
-        slab_probabilities=(dict(count=1, val=(1.0, 1.0)), dict(count=49, val=SLAB_PROB_7)),
+        slabs=(dict(count=1, val=2), dict(count=-1, val=7)),  # -1: fill up the rest of dimensions
+        noise_proportions=(dict(count=1, val=0.1), dict(count=-1, val=0)),
+        slab_probabilities=(dict(count=1, val=(1.0, 1.0)), dict(count=-1, val=SLAB_PROB_7)),
 
         # configs for the runner:
         train_samples=50000,
