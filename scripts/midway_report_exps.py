@@ -53,6 +53,7 @@ class SideProb(ExperimentSetup):
 class InputDim(ExperimentSetup):
     def generate_config(self, config, n_slabs, num_dim):
         config['data']['num_dim'] = num_dim
+        config['model']['input_dim'] = num_dim
         return config
 
 
