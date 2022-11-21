@@ -93,6 +93,7 @@ def parse_args():
     parser.add_argument('--log-dir', nargs='?', type=str, default=os.path.join(root_log_dir, timestamp))
     parser.add_argument('--experiments', nargs='+', type=str, choices=tuple(setups.keys()), required=True)
     parser.add_argument('--wandb-project', type=str)
+    parser.add_argument('--wandb-entity', type=str)
     args = parser.parse_args()
     return args
 
@@ -104,7 +105,7 @@ def main():
             for config in setups[setup_name]:
                 try:
                     runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed,
-                               wandb_project=args.wandb_project)
+                               wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
                 except:
                     print(f'Error running experiment {setup_name}')
 
