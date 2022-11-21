@@ -103,6 +103,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    os.makedirs(args.log_dir, exist_ok=True)
     logging.basicConfig(filename=os.path.join(args.log_dir, 'meta.log'), level=logging.DEBUG)
     root_logger = logging.getLogger('MidwayReportExps')
     root_logger.addHandler(StreamHandler())
