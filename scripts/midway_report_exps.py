@@ -4,6 +4,8 @@ from argparse import ArgumentParser
 from datetime import datetime
 from copy import deepcopy
 import traceback
+import logging
+from logging import StreamHandler
 
 import runner
 import numpy as np
@@ -56,7 +58,7 @@ class InputDim(ExperimentSetup):
 
 class NoiseProportion(ExperimentSetup):
     def generate_config(self, config, n_slabs, noise_prop):
-        config['data']['noise_proportions'][1]['val'] = noise_prop
+        config['data']['noise_proportions'][0]['val'] = noise_prop
         return config
 
 
@@ -101,14 +103,23 @@ def parse_args():
 
 def main():
     args = parse_args()
+    logging.basicConfig(filename=os.path.join(args.log_dir, 'meta.log'), level=logging.DEBUG)
+    root_logger = logging.getLogger('MidwayReportExps')
+    root_logger.addHandler(StreamHandler())
+    # avoid running duplicate setups (maybe duplicate of baselines)
+    completed_setups = set()
     for seed in args.seeds:
         for setup_name in args.experiments:
             for config in setups[setup_name]:
                 try:
-                    runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed,
-                               wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
+                    exp_name = format_exp_name(config, seed)
+                    if exp_name in completed_setups:
+                        root_logger.warning(f'Skipping duplicate experiment {exp_name} in {setup_name}')
+                    else:
+                        runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed,
+                                   wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
                 except:
-                    print(f'Error running experiment {setup_name}')
+                    root_logger.error(f'Error running experiment {setup_name}', exc_info=sys.exc_info())
                     traceback.print_exc()
 
 
