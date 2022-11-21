@@ -101,7 +101,10 @@ def main():
     for seed in args.seeds:
         for setup_name in args.experiments:
             for config in setups[setup_name]:
-                runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed)
+                try:
+                    runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed)
+                except:
+                    print(f'Error running experiment {setup_name}')
 
 
 if __name__ == '__main__':
