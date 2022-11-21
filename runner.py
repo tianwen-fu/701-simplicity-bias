@@ -95,12 +95,17 @@ def _prepare_data(data_config, overfit_complex_features, device):
     )
 
 
-def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False, device=None):
+def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False, device=None,
+        wandb_project=None):
     logger, work_dir = _prepare_logger(name, log_dir)
 
     logger.info(f'Config: {pprint.pformat(config)}')
     logger.info(f'Work directory: {work_dir}')
-    # TODO: log wandb config here
+    if wandb_project is not None:
+        import wandb
+        wandb_run = wandb.init(project=wandb_project, reinit=True, config=config, name=name)
+        wandb_run.save(os.path.join(work_dir, '*'))
+        wandb_run.log()
 
     config = _expand_config(config)
     with open(os.path.join(work_dir, 'full_config.py'), 'w') as file:
@@ -125,6 +130,9 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
     trainer = Trainer(dataloaders=dataloaders, model=model, device=device, work_dir=work_dir, logger=logger,
                       optimizer=optimizer, **config['trainer'])
     trainer.run()
+
+    if wandb_project is not None:
+        wandb_run.finish()
 
 
 if __name__ == '__main__':

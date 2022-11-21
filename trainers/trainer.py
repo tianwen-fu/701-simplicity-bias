@@ -106,7 +106,7 @@ class Trainer:
             '\n'.join(['{}: {}'.format(k, v) for k, v in eval_results.items()])
         ))
 
-    def run(self):
+    def run(self, wandb_logger=None):
         self.logger.info(f'Started, logging to {self.work_dir}...')
 
         # flush tiny numbers to zero to prevent severe CPU performance degradation
@@ -121,6 +121,8 @@ class Trainer:
                 for k, v in stats.items():
                     self.writer.add_scalar('Train_Step/{}'.format(k), v,
                                            global_step=step)
+                    if wandb_logger is not None:
+                        wandb_logger.log({'Train_Step/{}'.format(k): v}, step=step, commit=False)
                 if self.save_interval > 0 and step % self.save_interval == 0:
                     torch.save(dict(model=self.model.state_dict(), optim=self.optimizer.state_dict()),
                                os.path.join(self.work_dir, 'step_{}.pth'.format(step)))
@@ -130,6 +132,8 @@ class Trainer:
                     self.logger.info('Evaluating ...')
                     eval_results = self.short_evaluate()
                     self.log_eval_results(step, eval_results)
+                    if wandb_logger is not None:
+                        wandb_logger.log(eval_results, step=step)
                     if self.stop_criteria(step, eval_results):
                         stop = True
                 if stop:
