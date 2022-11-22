@@ -48,5 +48,5 @@ lms_7_fcn300_2 = dict(
 )
 
 lms_5_fcn300_2 = deepcopy(lms_7_fcn300_2)
-lms_5_fcn300_2['data']['slabs'] = (dict(count=1, val=2), dict(count=49, val=5))
-lms_5_fcn300_2['data']['slab_probabilities'] = (dict(count=1, val=(1.0, 1.0)), dict(count=49, val=SLAB_PROB_5))
+lms_5_fcn300_2['data']['slabs'] = (dict(count=1, val=2), dict(count=-1, val=5))
+lms_5_fcn300_2['data']['slab_probabilities'] = (dict(count=1, val=(1.0, 1.0)), dict(count=-1, val=SLAB_PROB_5))
