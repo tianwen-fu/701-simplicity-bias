@@ -106,7 +106,8 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
         if wandb_project is not None:
             import wandb
             wandb_run = wandb.init(project=wandb_project, reinit=True, config={**config, 'seed': seed}, name=name,
-                                   entity=wandb_entity, dir=wandb_dir)
+                                   entity=wandb_entity, dir=wandb_dir, sync_tensorboard=True)
+            logger.info(f'Temporary directory for WandB is {wandb_dir}') 
 
         config = _expand_config(config)
         with open(os.path.join(work_dir, 'full_config.py'), 'w') as file:
