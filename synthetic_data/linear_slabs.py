@@ -38,24 +38,28 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
     w: Union[np.ndarray, None]
 
     def __init__(self, x: Union[torch.Tensor, np.ndarray], y: Union[torch.Tensor, np.ndarray],
-                 w: Union[np.ndarray, None], randomized_axes=()):
+                 w: Union[np.ndarray, None], randomized_axes=(), device='cpu'):
         if len(randomized_axes) > 0:
             x = randomize_coordinates(x, w, randomized_axes)
         if isinstance(x, np.ndarray): x = torch.from_numpy(x)
         if isinstance(y, np.ndarray): y = torch.from_numpy(y)
+        x = x.float().to(device=device)
+        y = y.long().to(device=device)
         super().__init__(x, y)
         self.w = w
-        
+        self.device = device
+
     def __str__(self):
         return '<{} with {} samples and {} feature dimensions>'.format(
             self.__class__.__name__, self.tensors[0].shape[0], self.tensors[0].shape[1]
         )
-    
+
     def __repr__(self):
         return self.__str__()
 
     def randomize_axes(self, axes: Tuple[int]) -> "LinearSlabDataset":
-        return LinearSlabDataset(self.tensors[0].numpy(), self.tensors[1].numpy(), self.w, axes)
+        return LinearSlabDataset(self.tensors[0].cpu().numpy(), self.tensors[1].cpu().numpy(), self.w, axes,
+                                 self.device)
 
     def save_as(self, data_path: str, train_split: int = 0):
         """
@@ -85,7 +89,7 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
     @staticmethod
     def generate(num_samples, num_dim, width, slabs: np.ndarray, margins: Union[float, np.ndarray],
                  noise_proportions: Union[float, np.ndarray], slab_probabilities: List[List[float]],
-                 random_orthonormal_transform: bool) -> "LinearSlabDataset":
+                 random_orthonormal_transform: bool, device='cpu') -> "LinearSlabDataset":
         """
         Generate ndarrays for LMS-n or MS-(n, m) data
         Currently only supporting noise on linear slabs
@@ -149,10 +153,11 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
             w = get_orthonormal_matrix(num_dim)
         x = x.dot(w)
 
-        return LinearSlabDataset(x, y, w)
+        return LinearSlabDataset(x, y, w, device=device)
 
     def visualize(self, save_as: Optional[str] = None, title='LMS',
-                  axis_names=('first component', 'second component', 'third component')):
+                  axis_names=('first component', 'second component', 'third component'),
+                  show=True):
         x, y = [t.cpu().numpy() for t in self.tensors]
         w = self.w
 
@@ -176,16 +181,19 @@ class LinearSlabDataset(torch.utils.data.TensorDataset):
             if not os.path.isdir(os.path.dirname(save_as)):
                 os.makedirs(os.path.dirname(save_as), exist_ok=True)
             plt.savefig(save_as, bbox_inches='tight')
-        plt.show()
+        if show:
+            plt.show()
 
     def split_train_val(self, train_size):
         indices = torch.randperm(self.tensors[0].shape[0])
         train_indices = indices[:train_size]
         val_indices = indices[train_size:]
         train_split = LinearSlabDataset(self.tensors[0][train_indices].contiguous(),
-                                        self.tensors[1][train_indices].contiguous(), self.w)
+                                        self.tensors[1][train_indices].contiguous(), self.w,
+                                        device=self.device)
         val_split = LinearSlabDataset(self.tensors[0][val_indices].contiguous(),
-                                      self.tensors[1][val_indices].contiguous(), self.w)
+                                      self.tensors[1][val_indices].contiguous(), self.w,
+                                      device=self.device)
         return train_split, val_split
 
 
