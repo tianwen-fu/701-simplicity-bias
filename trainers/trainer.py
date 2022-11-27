@@ -6,6 +6,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
 from logging import Logger
 from typing import Dict
 from sklearn.metrics import roc_auc_score
@@ -15,7 +16,7 @@ from models import Model
 class Trainer:
     def __init__(self, dataloaders: Dict[str, DataLoader], model: Model, device, premature_evaluate_interval,
                  evaluate_interval, save_interval, work_dir, accuracy_threshold: float,
-                 logger: Logger, max_steps, optimizer: Optimizer):
+                 logger: Logger, max_steps, optimizer: Optimizer, scheduler: _LRScheduler):
         """
         train a model until loss convergence
         :param model:
@@ -39,6 +40,7 @@ class Trainer:
         self.logger = logger
         self.device = device
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.max_steps = max_steps
         self.patience = 1  # patience to wait for loss convergence
 
@@ -141,6 +143,10 @@ class Trainer:
                         stop = True
                 if stop:
                     break
+
+                if self.scheduler is not None:
+                    self.scheduler.step()
+                    self.writer.add_scalar('Learning_Rate', self.scheduler.get_last_lr()[0], global_step=step)
 
                 if wandb_logger is not None:
                     wandb_logger.log(scalars)

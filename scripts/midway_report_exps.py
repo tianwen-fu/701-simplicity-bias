@@ -7,6 +7,10 @@ import traceback
 import logging
 from logging import StreamHandler
 
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+
 import runner
 import numpy as np
 from abc import ABCMeta, abstractmethod
@@ -14,12 +18,13 @@ from configs import lms_7_fcn300_2, lms_5_fcn300_2
 
 
 def format_exp_name(config, seed):
-    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_seed{}'.format(
+    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_latent{}_seed{}'.format(
         config['data']['slabs'][1]['val'],
         config['data']['train_samples'],
         config['data']['slab_probabilities'][1]['val'][0],
         config['data']['num_dim'],
         config['data']['noise_proportions'][0]['val'],
+        config['model']['latent_dim'],
         seed)
     return name
 
@@ -69,14 +74,22 @@ class NumSamples(ExperimentSetup):
         return config
 
 
-class LinearDim(ExperimentSetup):
-    def generate_config(self, config, n_slabs, linear_dim):
-        slab_dim = config['data']['num_dim'] - linear_dim
-        assert slab_dim > 0
-        config['data']['slabs'][0]['count'] = linear_dim
-        config['data']['noise_proportions'][0]['count'] = linear_dim
-        config['data']['slab_probabilities'][0]['count'] = linear_dim
-        config['data']['simple_axes'] = tuple(range(linear_dim))
+class ModelSize(ExperimentSetup):
+    def generate_config(self, config, n_slabs, latent_dim):
+        config['trainer']['accuracy_threshold'] = 0.999
+        config['model']['latent_dim'] = latent_dim
+        return config
+
+
+class InputDimConverge(ExperimentSetup):
+    def generate_config(self, config, n_slabs, num_dim):
+        config['data']['num_dim'] = num_dim
+        config['model']['input_dim'] = num_dim
+        config['trainer']['accuracy_threshold'] = 1.0
+        config['trainer']['max_steps'] = 2000000
+        config['scheduler']['cls'] = 'StepLR'
+        config['scheduler']['step_size'] = 100000
+        return config
 
 
 setups = {
@@ -85,7 +98,10 @@ setups = {
     '5slab_inputdim': InputDim(5)((40, 50, 80, 100, 120, 150)),
     '7slab_inputdim': InputDim(7)((40, 50, 80, 100, 120, 150)),
     '7slab_noiseprop': NoiseProportion(7)(np.linspace(0.1, 0.7, num=15, endpoint=True)),
-    '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 200000, 500000))
+    '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 200000, 500000)),
+    '7slab_40dim': InputDimConverge(7)((40,)),
+    'toy_conv': InputDimConverge(5)((40,)),
+    '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000))
 }
 
 

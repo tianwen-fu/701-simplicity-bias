@@ -103,6 +103,7 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
     logger.info(f'Config: {pprint.pformat(config)}')
     logger.info(f'Work directory: {work_dir}')
     with tempfile.TemporaryDirectory() as wandb_dir:
+        wandb_run = None
         if wandb_project is not None:
             import wandb
             wandb_run = wandb.init(project=wandb_project, reinit=True, config={**config, 'seed': seed}, name=name,
@@ -130,9 +131,10 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
         if wandb_project is not None:
             wandb_run.watch(model)
         optimizer = utils.build_optimizer(model.parameters(), **config['optimizer'])
+        scheduler = utils.build_scheduler(optimizer, **config['scheduler'])
 
         trainer = Trainer(dataloaders=dataloaders, model=model, device=device, work_dir=work_dir, logger=logger,
-                          optimizer=optimizer, **config['trainer'])
+                          optimizer=optimizer, scheduler=scheduler, **config['trainer'])
         trainer.run(wandb_logger=wandb_run)
 
         if wandb_project is not None:

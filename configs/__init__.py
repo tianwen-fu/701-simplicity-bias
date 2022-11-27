@@ -38,6 +38,9 @@ lms_7_fcn300_2 = dict(
         weight_decay=5.0e-4,
         momentum=0.0
     ),
+    scheduler=dict(
+        cls='None',
+    ),
     trainer=dict(
         premature_evaluate_interval=1000,
         evaluate_interval=5000,
