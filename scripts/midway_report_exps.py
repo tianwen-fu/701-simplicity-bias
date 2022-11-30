@@ -160,7 +160,6 @@ def main():
                         # save metrics
                         update_metric_records(args.exp_results_data, config, result)
                 except KeyboardInterrupt:
-                    import sys
                     sys.exit(1)
                 except:
                     root_logger.error(f'Error running experiment {setup_name}', exc_info=sys.exc_info())
