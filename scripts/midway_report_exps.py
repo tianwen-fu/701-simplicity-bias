@@ -123,6 +123,7 @@ def parse_args():
 def update_metric_records(record_file, config, result):
     with open(record_file, 'rb') as in_data:
         data = pickle.load(in_data)
+    config = repr(config)
     if config in data:
         data[config].append(result)
     else:
@@ -158,6 +159,8 @@ def main():
 
                         # save metrics
                         update_metric_records(args.exp_results_data, config, result)
+                except KeyboardInterrupt:
+                    raise
                 except:
                     root_logger.error(f'Error running experiment {setup_name}', exc_info=sys.exc_info())
                     traceback.print_exc()
