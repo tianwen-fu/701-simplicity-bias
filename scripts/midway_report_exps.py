@@ -1,4 +1,5 @@
 import os
+import pickle
 import sys
 from argparse import ArgumentParser
 from datetime import datetime
@@ -17,7 +18,7 @@ from abc import ABCMeta, abstractmethod
 from configs import lms_7_fcn300_2, lms_5_fcn300_2
 
 
-def format_exp_name(config, seed):
+def format_exp_name(config):
     name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_latent{}_seed{}'.format(
         config['data']['slabs'][1]['val'],
         config['data']['train_samples'],
@@ -25,7 +26,7 @@ def format_exp_name(config, seed):
         config['data']['num_dim'],
         config['data']['noise_proportions'][0]['val'],
         config['model']['latent_dim'],
-        seed)
+        config['seed'])
     return name
 
 
@@ -114,8 +115,20 @@ def parse_args():
     parser.add_argument('--experiments', nargs='+', type=str, choices=tuple(setups.keys()), required=True)
     parser.add_argument('--wandb-project', type=str)
     parser.add_argument('--wandb-entity', type=str)
+    parser.add_argument('--exp-results-data', type=str, default=os.path.join(root_log_dir, timestamp, 'metrics.pkl'))
     args = parser.parse_args()
     return args
+
+
+def update_metric_records(record_file, config, result):
+    with open(record_file, 'rb') as in_data:
+        data = pickle.load(in_data)
+    if config in data:
+        data[config].append(result)
+    else:
+        data[config] = [result]
+    with open(record_file, 'wb') as out_data:
+        pickle.dump(data, out_data)
 
 
 def main():
@@ -124,18 +137,27 @@ def main():
     logging.basicConfig(filename=os.path.join(args.log_dir, 'meta.log'), level=logging.DEBUG)
     root_logger = logging.getLogger('MidwayReportExps')
     root_logger.addHandler(StreamHandler())
+    # database for final metrics
+    if not os.path.isfile(args.exp_results_data):
+        with open(args.exp_results_data, 'wb') as out_f:
+            pickle.dump({}, out_f)
     # avoid running duplicate setups (maybe duplicate of baselines)
     completed_setups = set()
     for seed in args.seeds:
         for setup_name in args.experiments:
             for config in setups[setup_name]:
                 try:
-                    exp_name = format_exp_name(config, seed)
+                    config['seed'] = seed
+                    exp_name = format_exp_name(config)
                     if exp_name in completed_setups:
                         root_logger.warning(f'Skipping duplicate experiment {exp_name} in {setup_name}')
                     else:
-                        runner.run(format_exp_name(config, seed), config, log_dir=args.log_dir, seed=seed,
-                                   wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
+                        result = runner.run(exp_name, config, log_dir=args.log_dir, seed=seed,
+                                            wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
+                        completed_setups.add(exp_name)
+
+                        # save metrics
+                        update_metric_records(args.exp_results_data, config, result)
                 except:
                     root_logger.error(f'Error running experiment {setup_name}', exc_info=sys.exc_info())
                     traceback.print_exc()

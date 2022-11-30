@@ -117,6 +117,7 @@ class Trainer:
 
         step = 0
         stop = False
+        eval_results = None
         while not stop:
             for x_batch, y_batch in self.train_data:
                 loss, stats = self.train_step(x_batch, y_batch)
@@ -153,6 +154,7 @@ class Trainer:
                 step += 1
         torch.save(dict(model=self.model.state_dict()), os.path.join(self.work_dir, 'final.pth'))
         self.logger.info('Train finished with {} steps'.format(step + 1))
+        return eval_results
 
 
 class FixedScheduleTrainer(Trainer):

@@ -102,44 +102,44 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
 
     logger.info(f'Config: {pprint.pformat(config)}')
     logger.info(f'Work directory: {work_dir}')
-    with tempfile.TemporaryDirectory() as wandb_dir:
-        wandb_run = None
-        if wandb_project is not None:
-            import wandb
-            wandb_run = wandb.init(project=wandb_project, reinit=True, config={**config, 'seed': seed}, name=name,
-                                   entity=wandb_entity, dir=wandb_dir, sync_tensorboard=True)
-            logger.info(f'Temporary directory for WandB is {wandb_dir}') 
+    wandb_run = None
+    if wandb_project is not None:
+        import wandb
+        wandb_run = wandb.init(project=wandb_project, reinit=True, config={**config, 'seed': seed}, name=name,
+                               entity=wandb_entity, sync_tensorboard=True)
 
-        config = _expand_config(config)
-        with open(os.path.join(work_dir, 'full_config.py'), 'w') as file:
-            print(repr(config), file=file)
+    config = _expand_config(config)
+    with open(os.path.join(work_dir, 'full_config.py'), 'w') as file:
+        print(repr(config), file=file)
 
-        if seed is not None:
-            set_random_seed(seed)
-        if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if seed is not None:
+        set_random_seed(seed)
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        dataloaders = _prepare_data(config['data'], overfit_complex_features, device)
-        for name, loader in dataloaders.items():
-            dataset: LinearSlabDataset = loader.dataset
-            dataset.visualize(title=name, save_as=os.path.join(work_dir, f'data_{name}.png'), show=False)
-            dataset.save_as(os.path.join(work_dir, f'data_{name}.npz'))
+    dataloaders = _prepare_data(config['data'], overfit_complex_features, device)
+    for name, loader in dataloaders.items():
+        dataset: LinearSlabDataset = loader.dataset
+        dataset.visualize(title=name, save_as=os.path.join(work_dir, f'data_{name}.png'), show=False)
+        dataset.save_as(os.path.join(work_dir, f'data_{name}.npz'))
 
-        # build model and optimizer
-        model = Model(config['model']).to(device=device)
-        logger.info(f'Model: {model}')
-        if wandb_project is not None:
-            wandb_run.watch(model)
-        optimizer = utils.build_optimizer(model.parameters(), **config['optimizer'])
-        scheduler = utils.build_scheduler(optimizer, **config['scheduler'])
+    # build model and optimizer
+    model = Model(config['model']).to(device=device)
+    logger.info(f'Model: {model}')
+    if wandb_project is not None:
+        wandb_run.watch(model)
+    optimizer = utils.build_optimizer(model.parameters(), **config['optimizer'])
+    scheduler = utils.build_scheduler(optimizer, **config['scheduler'])
 
-        trainer = Trainer(dataloaders=dataloaders, model=model, device=device, work_dir=work_dir, logger=logger,
-                          optimizer=optimizer, scheduler=scheduler, **config['trainer'])
-        trainer.run(wandb_logger=wandb_run)
+    trainer = Trainer(dataloaders=dataloaders, model=model, device=device, work_dir=work_dir, logger=logger,
+                      optimizer=optimizer, scheduler=scheduler, **config['trainer'])
+    eval_results = trainer.run(wandb_logger=wandb_run)
 
-        if wandb_project is not None:
-            wandb_run.save(os.path.join(work_dir, '*'))
-            wandb_run.finish()
+    if wandb_project is not None:
+        wandb_run.save(os.path.join(work_dir, '*'))
+        wandb_run.finish()
+
+    return eval_results
 
 
 if __name__ == '__main__':
