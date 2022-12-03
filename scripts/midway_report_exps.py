@@ -1,3 +1,4 @@
+import itertools
 import os
 import pickle
 import sys
@@ -19,13 +20,16 @@ from configs import lms_7_fcn300_2, lms_5_fcn300_2
 
 
 def format_exp_name(config):
-    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_latent{}_seed{}'.format(
+    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_fcn{}_{}_lr{}_mom{}_seed{}'.format(
         config['data']['slabs'][1]['val'],
         config['data']['train_samples'],
         config['data']['slab_probabilities'][1]['val'][0],
         config['data']['num_dim'],
         config['data']['noise_proportions'][0]['val'],
         config['model']['latent_dim'],
+        config['model']['num_layers'],
+        config['optimizer']['lr'],
+        config['optimizer']['momentum'],
         config['seed'])
     return name
 
@@ -93,6 +97,21 @@ class InputDimConverge(ExperimentSetup):
         return config
 
 
+class HyperparamTuning(ExperimentSetup):
+    def __init__(self, n_slabs, n_samples, base_config=None):
+        super().__init__(n_slabs, base_config)
+        self.base_config = deepcopy(self.base_config)
+        self.base_config['data']['train_samples'] = n_samples
+        # use shorter schedule
+        self.base_config['trainer']['max_steps'] = 80_000
+
+    def generate_config(self, config, n_slabs, param):
+        latent_dim, num_layers, lr, momentum = param
+        config['model'].update(num_layers=num_layers, latent_dim=latent_dim)
+        config['optimizer'].update(lr=lr, momentum=momentum)
+        return config
+
+
 setups = {
     '5slab_sideprob': SideProb(5)(np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
     '7slab_sideprob': SideProb(7)(np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False)),
@@ -102,7 +121,13 @@ setups = {
     '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 200000, 500000)),
     '7slab_40dim': InputDimConverge(7)((40,)),
     'toy_conv': InputDimConverge(5)((40,)),
-    '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000))
+    '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000)),
+    '7slab_largeSample_hyperparam': HyperparamTuning(7, 200000)(itertools.product(
+        (100, 300, 500, 1000),  # latent dim
+        (2, 3, 5, 7, 10),  # num_layers
+        (0.05, 0.1, 0.3, 0.5),  # lr
+        (0.0, 0.9)
+    ))
 }
 
 
