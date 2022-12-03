@@ -141,7 +141,7 @@ def parse_args():
     parser.add_argument('--wandb-project', type=str)
     parser.add_argument('--wandb-entity', type=str)
     parser.add_argument('--exp-results-data', type=str, default=os.path.join(root_log_dir, timestamp, 'metrics.pkl'))
-    parser.add_argument('--no-save-data', type=bool, action='store_true')
+    parser.add_argument('--no-save-data', action='store_true')
     args = parser.parse_args()
     return args
 
