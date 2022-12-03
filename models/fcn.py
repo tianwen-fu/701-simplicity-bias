@@ -12,6 +12,16 @@ def kaiming_init_relu(data: torch.Tensor):
 def generate_fcn(num_layers, input_dim, output_dim, latent_dim,
                  activation=nn.ReLU, use_bn=False, dropout_probability=0.0,
                  linear_init: Optional[Callable[[torch.Tensor], None]] = kaiming_init_relu) -> nn.Module:
+    if isinstance(activation, str):
+        if activation == 'ReLU':
+            activation = nn.ReLU
+        elif activation == 'sigmoid':
+            activation = nn.Sigmoid
+        elif activation == 'tanh':
+            activation = nn.Tanh
+        else:
+            raise NotImplementedError(f'Unknown Activation {activation}')
+
     layers = [nn.Linear(input_dim, latent_dim), activation()]
     if dropout_probability > 0: layers.append(nn.Dropout(dropout_probability))
     if use_bn: layers.append(nn.BatchNorm1d(latent_dim))

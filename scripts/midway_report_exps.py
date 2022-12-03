@@ -20,7 +20,7 @@ from configs import lms_7_fcn300_2, lms_5_fcn300_2
 
 
 def format_exp_name(config):
-    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_fcn{}_{}_lr{}_mom{}_seed{}'.format(
+    name = '{}slabs_n{}_p{:.4f}_d{}_noise{:.2f}_fcn{}_{}_{}_lr{}_mom{}_seed{}'.format(
         config['data']['slabs'][1]['val'],
         config['data']['train_samples'],
         config['data']['slab_probabilities'][1]['val'][0],
@@ -28,6 +28,7 @@ def format_exp_name(config):
         config['data']['noise_proportions'][0]['val'],
         config['model']['latent_dim'],
         config['model']['num_layers'],
+        config['model']['activation'],
         config['optimizer']['lr'],
         config['optimizer']['momentum'],
         config['seed'])
@@ -112,6 +113,21 @@ class HyperparamTuning(ExperimentSetup):
         return config
 
 
+class ActivationFunction(ExperimentSetup):
+    def generate_config(self, config, n_slabs, activation):
+        config['model']['activation'] = activation
+        return config
+
+
+def compose_configs(configs_a, configs_b):
+    configs = []
+    for base_config, other_config in itertools.product(configs_a, configs_b):
+        conf = deepcopy(base_config)
+        conf.update(other_config)
+        configs.append(conf)
+    return tuple(configs)
+
+
 setups = {
     '5slab_sideprob': SideProb(5)(np.linspace(1 / 64.0, 1 / 2.0, num=30, endpoint=False)),
     '7slab_sideprob': SideProb(7)(np.linspace(1 / 32.0, 1 / 2.0, num=20, endpoint=False)),
@@ -127,7 +143,15 @@ setups = {
         (2, 3, 5, 7, 10),  # num_layers
         (0.05, 0.1, 0.3, 0.5),  # lr
         (0.0, 0.9)
-    ))
+    )),
+    '5slab_sideprob_act': compose_configs(
+        ActivationFunction(5)(('ReLU', 'sigmoid', 'tanh')),
+        SideProb(5)(np.linspace(1 / 64.0, 1 / 2.0, num=10, endpoint=False))
+    ),
+    '7slab_sideprob_act': compose_configs(
+        ActivationFunction(7)(('ReLU', 'sigmoid', 'tanh')),
+        SideProb(7)(np.linspace(1 / 32.0, 1 / 2.0, num=10, endpoint=False))
+    ),
 }
 
 

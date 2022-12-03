@@ -31,6 +31,7 @@ lms_7_fcn300_2 = dict(
         dropout_probability=0.0,
         linear_init=None,
         loss='CrossEntropy',
+        activation='ReLU'
     ),
     optimizer=dict(
         cls='SGD',
