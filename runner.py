@@ -97,7 +97,7 @@ def _prepare_data(data_config, overfit_complex_features, device):
 
 
 def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False, device=None,
-        wandb_project=None, wandb_entity=None):
+        wandb_project=None, wandb_entity=None, save_data=True):
     logger, work_dir = _prepare_logger(name, log_dir)
 
     logger.info(f'Config: {pprint.pformat(config)}')
@@ -118,10 +118,11 @@ def run(name, config, *, log_dir=None, seed=None, overfit_complex_features=False
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     dataloaders = _prepare_data(config['data'], overfit_complex_features, device)
-    for name, loader in dataloaders.items():
-        dataset: LinearSlabDataset = loader.dataset
-        dataset.visualize(title=name, save_as=os.path.join(work_dir, f'data_{name}.png'), show=False)
-        dataset.save_as(os.path.join(work_dir, f'data_{name}.npz'))
+    if save_data:
+        for name, loader in dataloaders.items():
+            dataset: LinearSlabDataset = loader.dataset
+            dataset.visualize(title=name, save_as=os.path.join(work_dir, f'data_{name}.png'), show=False)
+            dataset.save_as(os.path.join(work_dir, f'data_{name}.npz'))
 
     # build model and optimizer
     model = Model(config['model']).to(device=device)

@@ -141,6 +141,7 @@ def parse_args():
     parser.add_argument('--wandb-project', type=str)
     parser.add_argument('--wandb-entity', type=str)
     parser.add_argument('--exp-results-data', type=str, default=os.path.join(root_log_dir, timestamp, 'metrics.pkl'))
+    parser.add_argument('--no-save-data', type=bool, action='store_true')
     args = parser.parse_args()
     return args
 
@@ -179,7 +180,8 @@ def main():
                         root_logger.warning(f'Skipping duplicate experiment {exp_name} in {setup_name}')
                     else:
                         result = runner.run(exp_name, config, log_dir=args.log_dir, seed=seed,
-                                            wandb_project=args.wandb_project, wandb_entity=args.wandb_entity)
+                                            wandb_project=args.wandb_project, wandb_entity=args.wandb_entity,
+                                            save_data=not args.no_save_data)
                         completed_setups.add(exp_name)
 
                         # save metrics
