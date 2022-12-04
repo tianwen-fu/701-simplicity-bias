@@ -54,7 +54,7 @@ class ExperimentSetup(metaclass=ABCMeta):
     @base_config.setter
     def base_config(self, new_base_config):
         self._base_config = new_base_config
-        assert self._base_config['data'][1]['val'] == self.n_slabs
+        assert self._base_config['data']['slabs'][1]['val'] == self.n_slabs
 
     @abstractmethod
     def generate_config(self, config, n_slabs, param):
