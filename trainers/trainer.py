@@ -1,15 +1,18 @@
 __all__ = ['Trainer', 'FixedScheduleTrainer']
 
 import os
-import numpy as np
-import torch
-from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import DataLoader
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
+import sys
 from logging import Logger
 from typing import Dict
+
+import numpy as np
+import torch
 from sklearn.metrics import roc_auc_score
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
 from models import Model
 
 
@@ -84,7 +87,10 @@ class Trainer:
                     assert pred.shape == y.shape
                     scores = logits[:, 1] - logits[:, 0]
 
-                    results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
+                    try:
+                        results['{}/AUC'.format(name)] = roc_auc_score(y.cpu().numpy(), scores.cpu().numpy())
+                    except ValueError:
+                        self.logger.error('ValueError on Evaluating AUC scores', exc_info=sys.exc_info())
                     results['{}/AverageLoss'.format(name)] = total_loss.item() / y.shape[0]
                     results['{}/Accuracy'.format(name)] = (pred == y).sum().cpu().float() / y.shape[0]
         return results

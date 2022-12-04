@@ -149,7 +149,7 @@ setups = {
     '5slab_inputdim': InputDim(5)((40, 50, 80, 100, 120, 150)),
     '7slab_inputdim': InputDim(7)((40, 50, 80, 100, 120, 150)),
     '7slab_noiseprop': NoiseProportion(7)(np.linspace(0.1, 0.7, num=15, endpoint=True)),
-    '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 200000, 500000)),
+    '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 125000, 150000, 175000, 200000, 500000)),
     '7slab_40dim': InputDimConverge(7)((40,)),
     'toy_conv': InputDimConverge(5)((40,)),
     '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000)),
@@ -216,9 +216,11 @@ def main():
     for seed in args.seeds:
         for setup_name in args.experiments:
             for config in setups[setup_name]:
+                exp_name = None
                 try:
                     config['seed'] = seed
                     exp_name = format_exp_name(config)
+                    root_logger.info(f'Running {exp_name}')
                     if exp_name in completed_setups:
                         root_logger.warning(f'Skipping duplicate experiment {exp_name} in {setup_name}')
                     else:
@@ -232,7 +234,7 @@ def main():
                 except KeyboardInterrupt:
                     sys.exit(1)
                 except:
-                    root_logger.error(f'Error running experiment {setup_name}', exc_info=sys.exc_info())
+                    root_logger.error(f'Error running experiment {exp_name or setup_name}', exc_info=sys.exc_info())
                     traceback.print_exc()
 
 
