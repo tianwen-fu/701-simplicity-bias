@@ -1,12 +1,12 @@
 import itertools
+import logging
 import os
 import pickle
 import sys
-from argparse import ArgumentParser
-from datetime import datetime
-from copy import deepcopy
 import traceback
-import logging
+from argparse import ArgumentParser
+from copy import deepcopy
+from datetime import datetime
 from logging import StreamHandler
 
 current = os.path.dirname(os.path.realpath(__file__))
@@ -16,7 +16,7 @@ sys.path.append(parent)
 import runner
 import numpy as np
 from abc import ABCMeta, abstractmethod
-from configs import lms_7_fcn300_2, lms_5_fcn300_2
+from configs import lms_7_fcn300_2, lms_5_fcn300_2, ms_57_fcn300_2
 
 
 def format_exp_name(config):
@@ -32,13 +32,20 @@ def format_exp_name(config):
         config['optimizer']['lr'],
         config['optimizer']['momentum'],
         config['seed'])
+    if config['data']['slabs'][0]['val'] == 5:
+        assert name.startswith('7slabs')
+        name = name.replace('7slabs_', 'ms57_')
     return name
 
 
 class ExperimentSetup(metaclass=ABCMeta):
-    def __init__(self, n_slabs, base_config=None):
+    def __init__(self, n_slabs, first_n_slabs=2, base_config=None):
         self.n_slabs = n_slabs
-        self.base_config = base_config or (lms_5_fcn300_2 if n_slabs == 5 else lms_7_fcn300_2)
+        if first_n_slabs == 2:
+            self.base_config = base_config or (lms_5_fcn300_2 if n_slabs == 5 else lms_7_fcn300_2)
+        else:
+            assert first_n_slabs == 5 and n_slabs == 7  # ms57
+            self.base_config = ms_57_fcn300_2
 
     @abstractmethod
     def generate_config(self, config, n_slabs, param):
@@ -99,8 +106,8 @@ class InputDimConverge(ExperimentSetup):
 
 
 class HyperparamTuning(ExperimentSetup):
-    def __init__(self, n_slabs, n_samples, base_config=None):
-        super().__init__(n_slabs, base_config)
+    def __init__(self, n_slabs, n_samples, first_n_slabs=2, base_config=None):
+        super().__init__(n_slabs, first_n_slabs, base_config)
         self.base_config = deepcopy(self.base_config)
         self.base_config['data']['train_samples'] = n_samples
         # use shorter schedule
@@ -151,6 +158,10 @@ setups = {
     '7slab_sideprob_act': compose_configs(
         ActivationFunction(7)(('ReLU', 'sigmoid', 'tanh')),
         SideProb(7)(np.linspace(1 / 32.0, 1 / 2.0, num=10, endpoint=False))
+    ),
+    'ms57_noiseprop': compose_configs(
+        NumSamples(7, 5)((100000,)),
+        NoiseProportion(7, 5)(np.linspace(0.1, 0.7, num=15, endpoint=True))
     ),
 }
 

@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-__all__ = ['lms_7_fcn300_2', 'lms_5_fcn300_2']
+__all__ = ['lms_7_fcn300_2', 'lms_5_fcn300_2', 'ms_57_fcn300_2']
 
 SLAB_PROB_7 = (1 / 16.0, 0.25, 7 / 16.0, 0.5, 7 / 16.0, 0.25, 1 / 16.0)
 SLAB_PROB_5 = (0.125, 0.5, 0.75, 0.5, 0.125)
@@ -54,3 +54,10 @@ lms_7_fcn300_2 = dict(
 lms_5_fcn300_2 = deepcopy(lms_7_fcn300_2)
 lms_5_fcn300_2['data']['slabs'] = (dict(count=1, val=2), dict(count=-1, val=5))
 lms_5_fcn300_2['data']['slab_probabilities'] = (dict(count=1, val=(1.0, 1.0)), dict(count=-1, val=SLAB_PROB_5))
+ms_57_fcn300_2 = deepcopy(lms_7_fcn300_2)
+ms_57_fcn300_2['data'].update(
+    slabs=(dict(count=1, val=5), dict(count=-1, val=7)), train_samples=100000,
+    slab_probabilities=(dict(count=1, val=SLAB_PROB_5), dict(count=-1, val=SLAB_PROB_7))
+)
+ms_57_fcn300_2['model'].update(num_layers=3)
+ms_57_fcn300_2['optimizer'].update(lr=0.1)
