@@ -91,6 +91,12 @@ class NoiseProportion(ExperimentSetup):
 
 
 class NumSamples(ExperimentSetup):
+    def __init__(self, n_slabs, short_schedule=False, first_n_slabs=2, base_config=None):
+        super().__init__(n_slabs, first_n_slabs, base_config)
+        self._base_config = deepcopy(self._base_config)
+        if short_schedule:
+            self._base_config['trainer']['max_steps'] = 80_000
+
     def generate_config(self, config, n_slabs, num_samples):
         config['data']['train_samples'] = num_samples
         return config
@@ -149,7 +155,8 @@ setups = {
     '5slab_inputdim': InputDim(5)((40, 50, 80, 100, 120, 150)),
     '7slab_inputdim': InputDim(7)((40, 50, 80, 100, 120, 150)),
     '7slab_noiseprop': NoiseProportion(7)(np.linspace(0.1, 0.7, num=15, endpoint=True)),
-    '7slab_nsamples': NumSamples(7)((20000, 40000, 100000, 125000, 150000, 175000, 200000, 500000)),
+    '7slab_nsamples': NumSamples(7, short_schedule=True)(
+        (20000, 50000, 100000, 125000, 150000, 175000, 200000, 500000)),
     '7slab_40dim': InputDimConverge(7)((40,)),
     'toy_conv': InputDimConverge(5)((40,)),
     '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000)),
