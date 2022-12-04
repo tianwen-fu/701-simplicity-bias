@@ -154,7 +154,7 @@ setups = {
     'toy_conv': InputDimConverge(5)((40,)),
     '7slab_modelsize': ModelSize(7)((300, 400, 500, 700, 1000)),
     '7slab_largeSample_hyperparam': HyperparamTuning(7, 200000)(itertools.product(
-        (100, 300, 500, 1000),  # latent dim
+        (300, 500, 1000),  # latent dim
         (2, 3, 5, 7, 10),  # num_layers
         (0.05, 0.1, 0.3, 0.5),  # lr
         (0.0, 0.9)
