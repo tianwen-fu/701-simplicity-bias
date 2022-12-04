@@ -42,10 +42,19 @@ class ExperimentSetup(metaclass=ABCMeta):
     def __init__(self, n_slabs, first_n_slabs=2, base_config=None):
         self.n_slabs = n_slabs
         if first_n_slabs == 2:
-            self.base_config = base_config or (lms_5_fcn300_2 if n_slabs == 5 else lms_7_fcn300_2)
+            self._base_config = base_config or (lms_5_fcn300_2 if n_slabs == 5 else lms_7_fcn300_2)
         else:
             assert first_n_slabs == 5 and n_slabs == 7  # ms57
-            self.base_config = ms_57_fcn300_2
+            self._base_config = ms_57_fcn300_2
+
+    @property
+    def base_config(self):
+        return self._base_config
+
+    @base_config.setter
+    def base_config(self, new_base_config):
+        self._base_config = new_base_config
+        assert self._base_config['data'][1]['val'] == self.n_slabs
 
     @abstractmethod
     def generate_config(self, config, n_slabs, param):
@@ -126,13 +135,12 @@ class ActivationFunction(ExperimentSetup):
         return config
 
 
-def compose_configs(configs_a, configs_b):
+def compose_configs(base_configs, other_setup: ExperimentSetup, other_params):
     configs = []
-    for base_config, other_config in itertools.product(configs_a, configs_b):
-        conf = deepcopy(base_config)
-        conf.update(other_config)
-        configs.append(conf)
-    return tuple(configs)
+    for config in base_configs:
+        other_setup.base_config = config
+        configs.extend(list(other_setup(other_params)))
+    return configs
 
 
 setups = {
@@ -152,16 +160,16 @@ setups = {
         (0.0, 0.9)
     )),
     '5slab_sideprob_act': compose_configs(
-        ActivationFunction(5)(('ReLU', 'sigmoid', 'tanh')),
-        SideProb(5)(np.linspace(1 / 64.0, 1 / 2.0, num=10, endpoint=False))
+        ActivationFunction(5)(('sigmoid', 'tanh', 'ReLU')),
+        SideProb(5), np.linspace(1 / 64.0, 1 / 2.0, num=10, endpoint=False)
     ),
     '7slab_sideprob_act': compose_configs(
-        ActivationFunction(7)(('ReLU', 'sigmoid', 'tanh')),
-        SideProb(7)(np.linspace(1 / 32.0, 1 / 2.0, num=10, endpoint=False))
+        ActivationFunction(7)(('sigmoid', 'tanh', 'ReLU')),
+        SideProb(7), np.linspace(1 / 32.0, 1 / 2.0, num=10, endpoint=False)
     ),
     'ms57_noiseprop': compose_configs(
         NumSamples(7, 5)((100000,)),
-        NoiseProportion(7, 5)(np.linspace(0.1, 0.7, num=15, endpoint=True))
+        NoiseProportion(7, 5), np.linspace(0.1, 0.7, num=15, endpoint=True)
     ),
 }
 
